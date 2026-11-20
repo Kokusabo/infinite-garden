@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>infinite garden</title>
+<meta name="description" content="a garden on a tape. it does not end. it only changes colour.">
+<meta name="theme-color" content="#0b1a0e">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; connect-src 'none'; media-src blob:; object-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'; upgrade-insecure-requests">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="fonts/fonts.css?v=1">
+<link rel="stylesheet" href="css/style.css?v=1">
+<script type="module" src="js/main.js?v=1"></script>
+</head>
+<body>
+<canvas id="view" aria-label="A garden that keeps changing: leaves, grass, light, things left outside and grown over."></canvas>
+
+<div class="osd" aria-hidden="true">
+  <span class="osd-tl" id="osd-mode">▶ PLAY</span>
+  <span class="osd-bl" id="osd-date"></span>
+  <span class="osd-br" id="osd-plot">PLOT 00000</span>
+</div>
+<div class="bar">
+  <span class="osd-count" id="osd-count" aria-hidden="true">T 0:00:00</span>
+  <button class="key" id="snd" type="button" aria-pressed="true">SOUND ON</button>
+  <button class="key" id="eject" type="button" aria-expanded="false" aria-controls="tapes">⏏ TAPES</button>
+</div>
+<p class="caption" id="caption" role="status" aria-live="polite"></p>
+<p class="hint" id="hint" aria-hidden="true">scroll · swipe — another plot &nbsp; tap — another green &nbsp; hold — letters &nbsp; type — grow</p>
+
+<div class="tapes" id="tapes" hidden>
+  <p class="tapes-head"><span>TAPES</span><button class="key" id="tapes-close" type="button" aria-label="close">×</button></p>
+  <ol>
+    <li><a href="https://kokusabo.github.io/present-day/"><span>01</span> present day <em>dark. eyes. the wired.</em></a></li>
+    <li><a href="https://kokusabo.github.io/limbo/"><span>02</span> limbo <em>white. water. a place between.</em></a></li>
+    <li class="now"><span>03</span> infinite garden <em>playing</em></li>
+  </ol>
+</div>
+
+<div class="deck" id="deck">
+  <div class="deck-in">
+    <p class="deck-label">TAPE 03 · <span>INFINITE GARDEN</span></p>
+    <p class="deck-sub">recorded over and over. nobody knows what was on it first.</p>
+    <button class="play" id="play" type="button">▶ PLAY</button>
+    <p class="deck-note">[ with sound ]</p>
+  </div>
+</div>
+
+<noscript><p class="noscript">the garden needs javascript to grow.</p></noscript>
+</body>
+</html>
