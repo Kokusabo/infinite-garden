@@ -3,6 +3,7 @@
  * an empty white room where something grows towards the window. Each is drawn small,
  * into its own picture, and then seen through the same eyes as the photographs. */
 import * as THREE from '../vendor/three.module.min.js';
+import { makeFlower } from './ascii.js?v=2';
 
 const TAU = Math.PI * 2;
 function rng(seed) { let s = seed >>> 0 || 1; return function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
@@ -31,6 +32,8 @@ function textures() {
   T.tile = tex(32, 32, function (x, w, h) { speckle(x, w, h, '#dfe5dc', ['#d3dbd0', '#e9eee6'], 120); x.fillStyle = '#b9c4b6'; x.fillRect(0, 15, 32, 1); x.fillRect(15, 0, 1, 32); x.fillRect(0, 31, 32, 1); x.fillRect(31, 0, 1, 32); x.fillStyle = '#9aa894'; x.fillRect(4, 6, 9, 1); x.fillRect(12, 7, 1, 5); }, [8, 30]);
   T.ivy = tex(32, 32, function (x) { for (let i = 0; i < 40; i++) { x.fillStyle = ['#3e7436', '#5b9446', '#78ad57', '#2d5e2c'][(R0() * 4) | 0]; const px = R0() * 32, py = R0() * 32; x.fillRect(px | 0, py | 0, 3, 2); x.fillRect((px | 0) + 1, (py | 0) - 1, 1, 1); } });
   T.wood = tex(16, 16, function (x, w, h) { speckle(x, w, h, '#f2f2ec', ['#e4e6de', '#fbfbf6'], 40); });
+  T.concrete = tex(32, 32, function (x, w, h) { speckle(x, w, h, '#c9c8bc', ['#bdbcaf', '#d4d3c8', '#b3b4a6', '#dad9cf'], 260); x.fillStyle = 'rgba(80,90,70,0.25)'; x.fillRect(0, 0, 32, 1); });
+  T.moss = tex(32, 32, function (x) { for (let i = 0; i < 160; i++) { x.fillStyle = ['#6f9a3e', '#87b04c', '#5b8636', '#a3c460', '#4c7430'][(R0() * 5) | 0]; x.fillRect((R0() * 32) | 0, (R0() * 32) | 0, 2, 1 + (R0() * 2 | 0)); } });
   return T;
 }
 function crossed(texture, w, h) {
@@ -65,7 +68,26 @@ function meadow() {
   const white = new THREE.MeshLambertMaterial({ map: t.wood }), chair = new THREE.Group();
   [[0, 0.45, 0, 0.5, 0.06, 0.5], [0, 0.8, 0.22, 0.5, 0.65, 0.05]].forEach(function (b) { const m = new THREE.Mesh(new THREE.BoxGeometry(b[3], b[4], b[5]), white); m.position.set(b[0], b[1], b[2]); chair.add(m); });
   [[-0.22, -0.22], [0.22, -0.22], [-0.22, 0.22], [0.22, 0.22]].forEach(function (l) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.45, 0.05), white); m.position.set(l[0], 0.22, l[1]); chair.add(m); });
-  chair.position.set(1.2, 0, -14); chair.rotation.y = 0.3; scene.add(chair);
+  chair.position.set(1.4, 0, -9); chair.rotation.y = 0.3; scene.add(chair);
+  // an old television in the grass, still on, showing a flower made of letters
+  const tvc = document.createElement('canvas'); tvc.width = 160; tvc.height = 120;
+  const tvx = tvc.getContext('2d'), tvTex = new THREE.CanvasTexture(tvc);
+  tvTex.magFilter = THREE.NearestFilter; tvTex.minFilter = THREE.NearestFilter; tvTex.generateMipmaps = false; tvTex.colorSpace = THREE.SRGBColorSpace;
+  function channel(seed) {
+    const f = makeFlower(seed, { size: 15 });
+    tvx.fillStyle = '#1c4a26'; tvx.fillRect(0, 0, 160, 120);
+    tvx.font = 'bold 8px monospace'; tvx.fillStyle = '#e4ffd6';
+    const w = f.rows[0] ? f.rows[0].length : 0, ox = (160 - w * 4.8) / 2;
+    f.rows.forEach(function (row, i) { tvx.fillText(row, ox, 8 + i * 7); });
+    tvx.fillStyle = 'rgba(0,0,0,0.25)'; for (let y = 0; y < 120; y += 2) tvx.fillRect(0, y, 160, 1);
+    tvTex.needsUpdate = true;
+  }
+  channel(3);
+  const tv = new THREE.Group(), shell = new THREE.MeshLambertMaterial({ color: 0x4c4f48 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.58, 0.6), shell); body.position.y = 0.29; tv.add(body);
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.54, 0.41), new THREE.MeshBasicMaterial({ map: tvTex, fog: false })); screen.position.set(-0.06, 0.3, 0.301); tv.add(screen);
+  tv.position.set(-0.7, 0, -5.2); tv.rotation.y = 0.35; scene.add(tv);
+  let chan = 0;
   // poles and the wires between them
   const pole = new THREE.MeshLambertMaterial({ color: 0x8c8a7c }), wire = new THREE.LineBasicMaterial({ color: 0x5d6656 });
   const tops = [];
@@ -75,7 +97,10 @@ function meadow() {
   const crown = new THREE.MeshLambertMaterial({ map: t.leafy, color: 0xd0e8c0 });
   for (let i = 0; i < 14; i++) { const c = new THREE.Mesh(new THREE.IcosahedronGeometry(2 + R() * 2.5, 0), crown); c.position.set((R() - 0.5) * 70, 2.5 + R() * 2, -40 - R() * 30); scene.add(c); }
   const camera = new THREE.PerspectiveCamera(58, 16 / 9, 0.05, 300);
-  return { scene: scene, camera: camera, update: function (t) { camera.position.set(Math.sin(t * 0.05) * 1.5, 1.3 + Math.sin(t * 0.4) * 0.03, -t * 0.35 % 40); camera.lookAt(camera.position.x * 0.5 + 1, 1.0, camera.position.z - 10); } };
+  return { scene: scene, camera: camera, update: function (t) {
+    camera.position.set(Math.sin(t * 0.05) * 1.5, 1.3 + Math.sin(t * 0.4) * 0.03, 2 - t * 0.35 % 30); camera.lookAt(camera.position.x * 0.5 + 0.2, 1.0, camera.position.z - 10);
+    if (Math.floor(t / 6) !== chan) { chan = Math.floor(t / 6); channel(chan * 977 + 5); }
+  } };
 }
 
 /* ---------- a glass house ---------- */
@@ -131,8 +156,41 @@ function room() {
   return { scene: scene, camera: camera, update: function (t) { const a = Math.sin(t * 0.06) * 0.5; camera.position.set(Math.sin(a) * 3, 1.5 + Math.sin(t * 0.2) * 0.05, 3.5 - t * 0.02 % 1.5); camera.lookAt(0.2, 1.5, -2.5); } };
 }
 
-export const WORLD_NAMES = ['meadow', 'greenhouse', 'room'];
-const MAKERS = { meadow: meadow, greenhouse: greenhouse, room: room };
+/* ---------- stairs up into the trees, and light at the top ---------- */
+function stairs() {
+  const t = textures(), R = rng(31), scene = new THREE.Scene();
+  scene.background = new THREE.Color('#f1f7e8'); scene.fog = new THREE.Fog('#ecf4e2', 3, 26);
+  lights(scene, 2.1, 1.4);
+  const N = 48, rise = 0.2, run = 0.42;
+  const concrete = new THREE.MeshLambertMaterial({ map: t.concrete }), moss = new THREE.MeshLambertMaterial({ map: t.moss });
+  for (let i = 0; i < N; i++) {
+    const h = rise * (i + 1), step = new THREE.Mesh(new THREE.BoxGeometry(2.6, h, run), concrete);
+    step.position.set(0, h / 2, -run * (i + 0.5)); scene.add(step);
+    if (R() < 0.75) { const w = 2.4 * (0.3 + R() * 0.7), m = new THREE.Mesh(new THREE.PlaneGeometry(w, run * 0.92).rotateX(-Math.PI / 2), moss); m.position.set((R() - 0.5) * (2.4 - w), h + 0.004, -run * (i + 0.5)); scene.add(m); }
+  }
+  // a rail on one side
+  const rail = new THREE.MeshLambertMaterial({ color: 0x6f7a62 }), slope = Math.atan2(rise, run), len = Math.hypot(rise, run) * N;
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, len), rail); bar.position.set(1.15, rise * N / 2 + 0.95, -run * N / 2); bar.rotation.x = slope; scene.add(bar);
+  for (let i = 2; i < N; i += 5) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.95, 0.04), rail); post.position.set(1.15, rise * (i + 1) + 0.47, -run * (i + 0.5)); scene.add(post); }
+  // walls of ivy on both sides, and trees closing overhead
+  const ivy = new THREE.MeshLambertMaterial({ map: t.ivy, alphaTest: 0.5, side: THREE.DoubleSide });
+  t.ivy.wrapS = t.ivy.wrapT = THREE.RepeatWrapping;
+  [-1.4, 1.4].forEach(function (x) { const w = new THREE.Mesh(new THREE.PlaneGeometry(len, 2.4), ivy); w.rotation.set(0, Math.PI / 2, -slope); w.position.set(x, rise * N / 2 + 0.6, -run * N / 2); scene.add(w); });
+  const leafy = new THREE.MeshLambertMaterial({ map: t.leafy, alphaTest: 0.5, side: THREE.DoubleSide });
+  scatter(scene, crossed(t.leafy, 3, 4), leafy, 70, function (i) { const side = i % 2 ? -1 : 1, k = R(); return [side * (2.2 + R() * 2.5), rise * N * k - 0.5, -run * N * k, R() * TAU, 0.8 + R() * 1.2]; });
+  // the top, where it is too bright to see
+  const glow = new THREE.Mesh(new THREE.PlaneGeometry(6, 4), new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false }));
+  glow.position.set(0, rise * N + 1.5, -run * N - 1.5); scene.add(glow);
+  const camera = new THREE.PerspectiveCamera(60, 16 / 9, 0.05, 120);
+  return { scene: scene, camera: camera, update: function (t) {
+    const k = (t * 0.22) % (run * N * 0.75), z = 1.2 - k, y = Math.max(0, -z / run) * rise + 1.55;
+    camera.position.set(Math.sin(t * 0.15) * 0.25, y + Math.sin(t * 1.6) * 0.03, z);
+    camera.lookAt(Math.sin(t * 0.07) * 0.6, y + 1.2, z - 6);
+  } };
+}
+
+export const WORLD_NAMES = ['meadow', 'greenhouse', 'stairs', 'room'];
+const MAKERS = { meadow: meadow, greenhouse: greenhouse, room: room, stairs: stairs };
 
 // a world drawn small into its own picture
 export function createWorld(name, renderer) {

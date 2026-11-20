@@ -12,7 +12,7 @@ uniform sampler2D tA, tB;
 uniform vec4 uFitA, uFitB;        // scale.xy, offset.xy: how each picture covers the screen
 uniform float uPixA, uPixB;       // 1 for the old 3d places: their pixels stay pixels
 uniform vec2 uResA, uResB;
-uniform float uMix, uTime, uAstig, uAngle, uGhost, uExpose, uBlind, uClosed, uSunAmt, uFlow, uStreak, uLeak;
+uniform float uMix, uTime, uAstig, uAngle, uGhost, uExpose, uBlind, uClosed, uSunAmt, uFlow, uStreak, uLeak, uHue, uSat, uWarm, uTape, uDim;
 uniform vec2 uSun, uGhostDir, uAspect;
 varying vec2 vUv;
 
@@ -32,6 +32,12 @@ vec3 pick(sampler2D t, vec4 fit, float pix, vec2 res, vec2 uv) {
   }
   return texture2D(t, clamp(q, 0.002, 0.998)).rgb;
 }
+// turn the green somewhere else: towards lime, towards mint, paler, fuller
+vec3 hueSat(vec3 c, float h, float s) {
+  float Y = dot(c, vec3(0.299, 0.587, 0.114)), I = dot(c, vec3(0.596, -0.274, -0.322)), Q = dot(c, vec3(0.211, -0.523, 0.312));
+  float ch = cos(h), sh = sin(h), I2 = (I * ch - Q * sh) * s, Q2 = (I * sh + Q * ch) * s;
+  return vec3(Y + 0.956 * I2 + 0.621 * Q2, Y - 0.272 * I2 - 0.647 * Q2, Y - 1.106 * I2 + 1.703 * Q2);
+}
 vec3 S(vec2 uv) {
   if (uMix <= 0.001) return pick(tA, uFitA, uPixA, uResA, uv);
   if (uMix >= 0.999) return pick(tB, uFitB, uPixB, uResB, uv);
@@ -40,6 +46,14 @@ vec3 S(vec2 uv) {
 
 void main() {
   vec2 uv = vUv;
+  // an old tape: lines slide a little, a band of noise crawls up the picture
+  float band = 0.0;
+  if (uTape > 0.001) {
+    float line = floor(uv.y * 240.0), tick = floor(uTime * 30.0);
+    uv.x += (h1(vec2(line, tick)) - 0.5) * 0.004 * uTape + sin(uv.y * 30.0 + uTime * 2.0) * 0.0015 * uTape;
+    band = smoothstep(0.03, 0.0, abs(uv.y - fract(uTime * 0.06))) * uTape;
+    uv.x += band * (h1(vec2(line, tick + 5.0)) - 0.5) * 0.04;
+  }
   vec2 dir = vec2(cos(uAngle), sin(uAngle)) / uAspect, per = vec2(-sin(uAngle), cos(uAngle)) / uAspect;
   float pix = mix(uPixA, uPixB, uMix);
   float L = uAstig * mix(0.022, 0.007, pix);
@@ -75,11 +89,28 @@ void main() {
   // a leak of light drifting across, warm green
   float lk = smoothstep(0.9, 0.0, abs(uv.x + sin(uTime * 0.07) * 0.6 - 0.5 + (uv.y - 0.5) * 0.5));
   col += vec3(0.55, 0.62, 0.25) * lk * uLeak * 0.25;
+  // the tape keeps colour apart from brightness, and smears it sideways
+  if (uTape > 0.001) {
+    vec3 sm = (S(uv - vec2(0.007, 0.0)) + S(uv - vec2(0.0035, 0.0)) + col + S(uv + vec2(0.005, 0.0))) * 0.25;
+    float y = dot(col, vec3(0.299, 0.587, 0.114));
+    vec3 v = vec3(y) + (sm - dot(sm, vec3(0.299, 0.587, 0.114))) * 1.15;
+    col = mix(col, v * vec3(0.97, 1.03, 0.9), uTape);
+  }
   // exposure: the sun in the eyes
   col = 1.0 - exp(-col * uExpose);
+  // every time a little different green
+  col = clamp(hueSat(col, uHue, uSat), 0.0, 1.0) * vec3(1.0 + uWarm * 0.05, 1.0 + uWarm * 0.012, 1.0 - uWarm * 0.07);
   // light green, gentle: lift the shadows towards green, keep the whites a little creamy
   col = mix(col, vec3(dot(col, vec3(0.3, 0.55, 0.15))), 0.12);
   col = col * vec3(0.94, 1.0, 0.9) + vec3(0.03, 0.07, 0.035) * (1.0 - col);
+  // the tape's lines and its noise
+  if (uTape > 0.001) {
+    col *= 1.0 - uTape * 0.1 * step(0.5, fract(gl_FragCoord.y * 0.5));
+    col = mix(col, vec3(h1(gl_FragCoord.xy + floor(uTime * 30.0))) * 0.7 + col * 0.5, band * 0.5);
+    col += (h1(vec2(gl_FragCoord.y, floor(uTime * 30.0))) - 0.5) * 0.03 * uTape;
+  }
+  // dimmed, so the letters can be read
+  col = mix(col, col * vec3(0.16, 0.3, 0.2) + vec3(0.01, 0.035, 0.02), uDim);
   // eyes shut: dark green, and the bright parts burnt in as an afterimage
   vec3 after = vec3(0.012, 0.045, 0.03) + (b * 0.35 + st * 0.25) * vec3(0.55, 0.85, 0.4) + vec3(0.25, 0.4, 0.15) * exp(-r * 3.0) * uSunAmt;
   col = mix(col, after, uClosed);
@@ -95,7 +126,7 @@ export function createDream(renderer) {
     tA: { value: blank }, tB: { value: blank }, uFitA: { value: new THREE.Vector4(1, 1, 0, 0) }, uFitB: { value: new THREE.Vector4(1, 1, 0, 0) },
     uPixA: { value: 0 }, uPixB: { value: 0 }, uResA: { value: new THREE.Vector2(1, 1) }, uResB: { value: new THREE.Vector2(1, 1) },
     uMix: { value: 0 }, uTime: { value: 0 }, uAstig: { value: 1 }, uAngle: { value: 0.3 }, uGhost: { value: 0.5 }, uExpose: { value: 1.6 },
-    uBlind: { value: 0 }, uClosed: { value: 0 }, uSunAmt: { value: 0.6 }, uFlow: { value: 1 }, uStreak: { value: 1 }, uLeak: { value: 0.5 },
+    uBlind: { value: 0 }, uClosed: { value: 0 }, uSunAmt: { value: 0.6 }, uFlow: { value: 1 }, uStreak: { value: 1 }, uLeak: { value: 0.5 }, uHue: { value: 0 }, uSat: { value: 1 }, uWarm: { value: 0 }, uTape: { value: 0 }, uDim: { value: 0 },
     uSun: { value: new THREE.Vector2(0.7, 0.75) }, uGhostDir: { value: new THREE.Vector2(0.006, 0.003) }, uAspect: { value: new THREE.Vector2(1, 1) }
   };
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({ uniforms: U, vertexShader: VERT, fragmentShader: FRAG, depthTest: false, depthWrite: false }));

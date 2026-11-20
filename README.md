@@ -38,3 +38,32 @@ photographs, with thanks:
 - `footage/25.jpg` Dinah Liu, https://unsplash.com/photos/75SIR7nqvlc
 - `footage/26.jpg` Robby Weißenberg, https://unsplash.com/photos/Aq_1ZVN4AWA
 - `footage/27.jpg` Star, https://unsplash.com/photos/9bXZ23-3EjA
+- `footage/28.jpg` Natalie Kinnear, https://unsplash.com/photos/8aqcYWPvdL8
+- `footage/29.jpg` Alina and David, https://unsplash.com/photos/nTuOy4ekklc
+- `footage/30.jpg` User Pascal, https://unsplash.com/photos/F8_AWJxPJM4
+- `footage/31.jpg` nell shemshenovi, https://unsplash.com/photos/oJf8jIMknSo
+- `footage/32.jpg` Aleksey Rusov, https://unsplash.com/photos/LUKOv92nCa4
+- `footage/33.jpg` kari ham, https://unsplash.com/photos/LdmCLlGepIA
+- `footage/34.jpg` Alexandr Popadin, https://unsplash.com/photos/yeZUg6kK_kQ
+- `footage/35.jpg` Trac Vu, https://unsplash.com/photos/6JoGS4vbD0E
+- `footage/36.jpg` Brett Jordan, https://unsplash.com/photos/Gy2NKDamq1o
+- `footage/37.jpg` N Suma, https://unsplash.com/photos/uYHP5Sj365s
+- `footage/38.jpg` Sreeraj S, https://unsplash.com/photos/95baBTvQ5gI
+- `footage/39.jpg` Kadir Celep, https://unsplash.com/photos/A8aJwJ49rVM
+- `footage/40.jpg` Steinar Engeland, https://unsplash.com/photos/BfMbxUu0EGE
+- `footage/41.jpg` Megan Nixon, https://unsplash.com/photos/Y8QaAdT4Msk
+- `footage/42.jpg` Amanda Sala, https://unsplash.com/photos/WcLcuhqX6gM
+- `footage/43.jpg` Emmanuel Black, https://unsplash.com/photos/igcPsF_9hGI
+- `footage/44.jpg` Intricate Explorer, https://unsplash.com/photos/3y9g4FTZ7hk
+- `footage/45.jpg` Tatiana Zhukova, https://unsplash.com/photos/nvnCv03jlyU
+- `footage/46.jpg` Natalie Kinnear, https://unsplash.com/photos/DnVEJpDkJfc
+- `footage/47.jpg` Aaron Burden, https://unsplash.com/photos/sI8V_ax011I
+- `footage/48.jpg` Jen We, https://unsplash.com/photos/Kv3Xk2gfhyU
+- `footage/49.jpg` Frédéric Perez, https://unsplash.com/photos/1o0W52HcchQ
+- `footage/50.jpg` Phil Botha, https://unsplash.com/photos/GHv66Lu1UbI
+- `footage/51.jpg` Pete F, https://unsplash.com/photos/5lKq8LTulR0
+- `footage/52.jpg` Hanna Lazar, https://unsplash.com/photos/SfqB-5RwyIk
+- `footage/53.jpg` Daniel Cosmo, https://unsplash.com/photos/E_Nsq27KgMM
+- `footage/54.jpg` Daniel Cosmo, https://unsplash.com/photos/j1GIy999dx8
+- `footage/55.jpg` Darya Kazemi, https://unsplash.com/photos/LAwuSoI69IY
+- `footage/56.jpg` Borek Lupoměský, https://unsplash.com/photos/fT-l-8FP7ns

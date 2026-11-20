@@ -4,9 +4,9 @@
  * sharp, the only sharp thing there is. Touch, and one grows there. Hold, and your eyes
  * close. Type, and what you type grows. It does not end. */
 import * as THREE from '../vendor/three.module.min.js';
-import { createDream, cover } from './dream.js?v=1';
-import { createWorld, WORLD_NAMES } from './worlds.js?v=1';
-import { makeFlower, bloom } from './ascii.js?v=1';
+import { createDream, cover } from './dream.js?v=2';
+import { createWorld, WORLD_NAMES } from './worlds.js?v=2';
+import { makeFlower, bloom, picture } from './ascii.js?v=2';
 import { createSound } from './sound.js?v=2';
 
 const $ = function (s) { return document.querySelector(s); };
@@ -15,7 +15,7 @@ const lerp = function (a, b, t) { return a + (b - a) * t; };
 const smooth = function (t) { t = Math.min(1, Math.max(0, t)); return t * t * (3 - 2 * t); };
 const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const clock = function () { return performance.now() / 1000; };
-const FOOTAGE = 28;
+const FOOTAGE = 57;
 
 /* ---------- sound: on from the first touch, unless turned off before ---------- */
 const sound = createSound();
@@ -46,7 +46,7 @@ const WORDS = [
   'you have been here. you were smaller', 'everything is a little too bright', 'it remembers your hands',
   'one more minute', 'there was a window here', 'the grass grew over the sound'
 ];
-const wordsEl = $('#words');
+const wordsEl = $('#words'), stamp = $('#stamp');
 function say(text) {
   wordsEl.textContent = text;
   wordsEl.style.left = rand(8, 46) + 'vw'; wordsEl.style.top = rand(12, 78) + 'vh';
@@ -95,18 +95,20 @@ function run() {
   /* ---- what can be seen ---- */
   const loader = new THREE.TextureLoader();
   const order = []; for (let i = 0; i < FOOTAGE; i++) order.push(i);
-  for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const k = order[i]; order[i] = order[j]; order[j] = k; }
+  function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const k = a[i]; a[i] = a[j]; a[j] = k; } }
+  shuffle(order);
   let oi = 0, wi = Math.floor(Math.random() * WORLD_NAMES.length), sinceWorld = 0;
   const worlds = {};
   function photo(cb) {
+    if (oi > 0 && oi % order.length === 0) shuffle(order);
     const n = order[oi++ % order.length];
     loader.load('footage/' + String(n).padStart(2, '0') + '.jpg?v=1', function (t) {
       t.colorSpace = THREE.NoColorSpace; t.minFilter = THREE.LinearFilter; t.generateMipmaps = false;
       cb({ tex: t, w: t.image.width, h: t.image.height, pix: 0 });
     }, undefined, function () { cb(null); });
   }
-  function world() {
-    const name = WORLD_NAMES[wi++ % WORLD_NAMES.length];
+  function world(named) {
+    const name = named || WORLD_NAMES[wi++ % WORLD_NAMES.length];
     if (!worlds[name]) worlds[name] = createWorld(name, renderer);
     const w = worlds[name];
     return { tex: w.texture, w: w.w, h: w.h, pix: 1, world: w, born3d: clock() };
@@ -115,6 +117,13 @@ function run() {
   function dress(s) {
     s.z0 = rand(1.0, 1.12); s.z1 = s.z0 + rand(-0.1, 0.12); s.px0 = rand(-0.7, 0.7); s.py0 = rand(-0.7, 0.7); s.px1 = s.px0 + rand(-0.5, 0.5); s.py1 = s.py0 + rand(-0.5, 0.5);
     s.born = clock(); s.life = reduced ? rand(18, 26) : rand(10, 17);
+    s.hue = Math.random() < 0.25 ? 0 : rand(-0.34, 0.28); s.sat = rand(0.7, 1.18); s.warm = rand(-1, 1);
+    s.tape = !s.pix && Math.random() < 0.16 ? 1 : 0;
+    if (s.tape) {
+      const d = new Date(1996 + Math.floor(Math.random() * 30), Math.floor(Math.random() * 12), 1 + Math.floor(Math.random() * 28), 6 + Math.floor(Math.random() * 14), Math.floor(Math.random() * 60));
+      const p2 = function (v) { return String(v).padStart(2, '0'); };
+      s.date = p2(d.getMonth() + 1) + '/' + p2(d.getDate()) + '/' + d.getFullYear() + '  ' + p2(d.getHours()) + ':' + p2(d.getMinutes());
+    }
     return s;
   }
   let A = null, B = null, mixT0 = 0, loading = false;
@@ -143,15 +152,59 @@ function run() {
     const f = makeFlower((Math.random() * 1e9) | 0, { size: big ? 26 : rand(14, 24), petal: petal });
     const b = bloom(garden, f, x, y, sz, big ? 6 : rand(7, 12));
     if (big) b.el.classList.add('after');
+    b.big = big;
     blooms.push(b);
     if (blooms.length > 6) { const o = blooms.shift(); o.el.remove(); }
   }
+  const dust = $('#dust'), dx = dust.getContext('2d'), seeds = [];
+  const letters = $('#letters'), lx = letters.getContext('2d');
+  function canvases() {
+    const r = Math.min(window.devicePixelRatio || 1, 2);
+    [dust, letters].forEach(function (c) { c.width = Math.round(window.innerWidth * r); c.height = Math.round(window.innerHeight * r); });
+    dx.setTransform(r, 0, 0, r, 0, 0); lx.setTransform(r, 0, 0, r, 0, 0);
+  }
+  canvases();
+  window.addEventListener('resize', canvases);
+  const SEEDS = ['*', '+', '.', "'", '*', '`', '+', '.'];
+  function shed(b) {
+    const n = b.big ? 26 : 10 + Math.floor(Math.random() * 8);
+    for (let i = 0; i < n; i++) seeds.push({ x: b.x + Math.random() * b.w, y: b.y + Math.random() * b.h * 0.45, vx: rand(4, 26), vy: rand(-26, -8), ch: SEEDS[(Math.random() * SEEDS.length) | 0], born: clock(), life: rand(6, 11), ph: rand(0, 6.28) });
+  }
+  let dustDirty = false;
+  function drawSeeds(t, dt) {
+    if (!seeds.length && !dustDirty) return;
+    dx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    dustDirty = seeds.length > 0;
+    dx.font = '400 ' + (window.innerWidth < 700 ? 15 : 19) + 'px "IBM Plex Mono", ui-monospace, monospace';
+    for (let i = seeds.length - 1; i >= 0; i--) {
+      const p = seeds[i], age = t - p.born;
+      if (age > p.life) { seeds.splice(i, 1); continue; }
+      p.vx += Math.sin(t * 0.7 + p.ph) * dt * 8; p.vy += Math.cos(t * 0.9 + p.ph) * dt * 5;
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      const a = Math.min(1, age * 2) * (1 - age / p.life);
+      dx.fillStyle = 'rgba(24,58,30,' + (a * 0.35).toFixed(3) + ')'; dx.fillText(p.ch, p.x + 1, p.y + 1);
+      dx.fillStyle = 'rgba(255,255,250,' + a.toFixed(3) + ')'; dx.fillText(p.ch, p.x, p.y);
+    }
+  }
   let nextBloom = 3;
+  let memT0 = -1, nextMemory = rand(28, 44);
+  function remember() {
+    if (!A || A.pix || B || !A.tex || !A.tex.image) return false;
+    const img = A.tex.image, f = U.uFitA.value, iw = img.width, ih = img.height;
+    // the part of the photograph that is on the screen right now (textures are flipped upright)
+    const crop = { x: (0.5 - f.x / 2 + f.z) * iw, y: (1 - (0.5 + f.y / 2 + f.w)) * ih, w: f.x * iw, h: f.y * ih };
+    picture(lx, img, crop, window.innerWidth, window.innerHeight, window.innerWidth < 700 ? 10 : 13);
+    memT0 = clock();
+    letters.style.setProperty('--mx', (sun.x * 100).toFixed(1) + '%');
+    letters.style.setProperty('--my', ((1 - sun.y) * 100).toFixed(1) + '%');
+    return true;
+  }
 
   /* ---- the eye's own drift ---- */
   const sun = new THREE.Vector2(0.72, 0.78), sunT = new THREE.Vector2(0.72, 0.78);
   let mouse = false, closed = 0, holding = false, blindT0 = -1, blindPlanted = false, nextBlind = rand(16, 26), nextWords = rand(18, 30), flash = 0;
   let angle = rand(0, Math.PI), angleV = rand(-0.05, 0.05);
+  let blinkT0 = -1, nextBlink = rand(20, 40), twice = false, focusT0 = -1, nextFocus = rand(30, 50);
   window.addEventListener('pointermove', function (e) {
     if (e.pointerType === 'mouse') { mouse = true; sunT.set(e.clientX / window.innerWidth, 1 - e.clientY / window.innerHeight); }
     if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 14) clearTimeout(holdTimer);
@@ -191,7 +244,8 @@ function run() {
   if (/[?&]debug\b/.test(location.search)) {
     window.__garden = {
       begin: begin, next: function () { if (A) A.life = 0; }, blind: function () { nextBlind = 0; },
-      world: function () { B = null; A = dress(world()); }, plant: plant, still: function () { nextBlind = 1e9; if (A) A.life = 1e9; }
+      remember: remember, blink: function () { nextBlink = 0; }, focus: function () { nextFocus = 0; }, tape: function () { if (A) { A.tape = 1; A.date = '11/24/2025  15:09'; } },
+      world: function (name) { B = null; A = dress(world(name)); }, plant: plant, seeds: function () { return seeds.length; }, still: function () { nextBlind = 1e9; if (A) A.life = 1e9; }
     };
   }
 
@@ -219,12 +273,24 @@ function run() {
       (k ? U.tB : U.tA).value = s.tex; (k ? U.uPixB : U.uPixA).value = s.pix; (k ? U.uResB : U.uResA).value.set(s.w, s.h);
     });
     U.uMix.value = mix;
+    if (A) {
+      const g = function (k) { return B ? lerp(A[k], B[k], mix) : A[k]; };
+      U.uHue.value = g('hue'); U.uSat.value = g('sat'); U.uWarm.value = g('warm');
+      U.uTape.value += (g('tape') - U.uTape.value) * (1 - Math.exp(-dt * 3));
+      const date = U.uTape.value > 0.4 ? (B && mix > 0.5 ? B.date : A.date) || '' : '';
+      if (stamp.textContent !== date) stamp.textContent = date;
+      stamp.classList.toggle('on', U.uTape.value > 0.4);
+    }
 
     // the eye wanders: the smear turns, the double image slides, the sun moves
     angleV += (Math.random() - 0.5) * dt * 0.02; angleV = Math.max(-0.07, Math.min(0.07, angleV));
     angle += angleV * dt * (reduced ? 0.3 : 1);
     U.uAngle.value = angle;
-    U.uAstig.value = 1.0 + 0.35 * Math.sin(t * 0.21) + 0.15 * Math.sin(t * 0.67);
+    // now and then the eye almost finds its focus, and loses it again
+    let focus = 1;
+    if (started && !reduced && focusT0 < 0 && t - openedAt > nextFocus) { focusT0 = t; nextFocus = t - openedAt + rand(35, 60); }
+    if (focusT0 >= 0) { const f = t - focusT0; focus = 1 - 0.72 * (f < 1.6 ? smooth(f / 1.6) : f < 4.2 ? 1 : 1 - smooth((f - 4.2) / 1.8)); if (f > 6) focusT0 = -1; }
+    U.uAstig.value = (1.0 + 0.35 * Math.sin(t * 0.21) + 0.15 * Math.sin(t * 0.67)) * focus;
     U.uGhost.value = 0.55 + 0.35 * Math.sin(t * 0.13 + 1);
     U.uGhostDir.value.set(Math.cos(t * 0.05) * 0.008, Math.sin(t * 0.07) * 0.005);
     if (!mouse) sunT.set(0.5 + Math.sin(t * 0.031) * 0.38, 0.62 + Math.sin(t * 0.047) * 0.3);
@@ -250,8 +316,27 @@ function run() {
     U.uBlind.value = Math.min(1, Math.max(blind, opening * 0.95, flash));
     U.uExpose.value = expose * (1 + opening * 1.5);
     U.uSunAmt.value = 0.55 + 0.25 * Math.sin(t * 0.23) + blind * 0.6;
+    // a blink, sometimes two
+    let lid = 0;
+    if (started && !reduced && blinkT0 < 0 && t - openedAt > nextBlink) { blinkT0 = t; twice = Math.random() < 0.3; nextBlink = t - openedAt + rand(25, 55); }
+    if (blinkT0 >= 0) {
+      const b = t - blinkT0, one = function (x) { return x < 0 ? 0 : x < 0.16 ? smooth(x / 0.16) : x < 0.3 ? 1 : x < 0.62 ? 1 - smooth((x - 0.3) / 0.32) : 0; };
+      lid = Math.max(one(b), twice ? one(b - 0.75) : 0);
+      if (b > (twice ? 1.5 : 0.8)) blinkT0 = -1;
+    }
     closed += ((holding ? 1 : 0) - closed) * (1 - Math.exp(-dt * 5));
-    U.uClosed.value = closed;
+    U.uClosed.value = Math.max(closed, lid);
+    // the picture remembered as letters: it goes dim, the letters come out from where the sun is
+    if (started && memT0 < 0 && blindT0 < 0 && t - openedAt > nextMemory) { if (remember()) nextMemory = t - openedAt + rand(45, 80); else nextMemory = t - openedAt + 4; }
+    let dim = 0;
+    if (memT0 >= 0) {
+      const m = t - memT0, k = m < 1.4 ? smooth(m / 1.4) : m < 6.4 ? 1 : 1 - smooth((m - 6.4) / 2);
+      dim = k * 0.86;
+      letters.style.setProperty('--mr', (smooth(m / 2.6) * 150).toFixed(1) + 'vmax');
+      letters.style.opacity = k.toFixed(3);
+      if (m > 8.5) { memT0 = -1; letters.style.opacity = '0'; lx.clearRect(0, 0, window.innerWidth, window.innerHeight); }
+    }
+    U.uDim.value = dim;
     U.uTime.value = t;
 
     dream.render();
@@ -261,7 +346,12 @@ function run() {
       nextBloom = t - openedAt + rand(4, 9);
       if (blooms.length < 4) plant(window.innerWidth * rand(0.08, 0.92), window.innerHeight * rand(0.45, 0.98), null, false);
     }
-    for (let i = blooms.length - 1; i >= 0; i--) if (!blooms[i].tick(t)) blooms.splice(i, 1);
+    for (let i = blooms.length - 1; i >= 0; i--) {
+      const b = blooms[i];
+      if (!b.shed && t - b.born > b.life) { b.shed = true; shed(b); }
+      if (!b.tick(t)) blooms.splice(i, 1);
+    }
+    drawSeeds(t, dt);
     if (started && t - openedAt > nextWords) { nextWords = t - openedAt + rand(22, 40); say(WORDS[Math.floor(Math.random() * WORDS.length)]); }
     sound.mood(0.15 + blind * 0.3, t);
   }

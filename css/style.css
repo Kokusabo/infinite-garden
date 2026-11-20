@@ -13,6 +13,22 @@ body { font: 300 1rem/1.4 var(--f-mono); color: #fff; -webkit-font-smoothing: an
 .noscript { position: fixed; inset: 45% 16px auto; text-align: center; color: var(--leaf); }
 :focus-visible { outline: 1px dotted #fff; outline-offset: 3px; }
 
+/* the picture remembered as letters, coming out from where the sun is */
+.letters {
+  position: fixed; inset: 0; z-index: 2; width: 100%; height: 100%; pointer-events: none; opacity: 0;
+  -webkit-mask-image: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), #000 var(--mr, 0vmax), transparent calc(var(--mr, 0vmax) + 24vmax));
+  mask-image: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), #000 var(--mr, 0vmax), transparent calc(var(--mr, 0vmax) + 24vmax));
+}
+.dust { position: fixed; inset: 0; z-index: 4; width: 100%; height: 100%; pointer-events: none; }
+/* the date a tape was made, burnt into it */
+.stamp {
+  position: fixed; z-index: 4; left: max(16px, env(safe-area-inset-left, 0px)); bottom: max(14px, env(safe-area-inset-bottom, 0px)); margin: 0;
+  font: 400 clamp(0.95rem, 1.6vw, 1.3rem) var(--f-mono); letter-spacing: 0.1em; white-space: pre; color: #ffd458;
+  text-shadow: 1px 1px 0 rgba(90, 50, 0, 0.55), 0 0 8px rgba(255, 190, 60, 0.55);
+  opacity: 0; transition: opacity 1.2s ease; pointer-events: none;
+}
+.stamp.on { opacity: 0.92; }
+
 /* flowers made of letters */
 .garden { position: fixed; inset: 0; z-index: 3; pointer-events: none; overflow: hidden; }
 .bloom {

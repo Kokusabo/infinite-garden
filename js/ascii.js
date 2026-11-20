@@ -179,13 +179,14 @@ export function bloom(container, f, x, y, sizePx, life) {
   pre.style.fontSize = sizePx + 'px';
   container.appendChild(pre);
   const w = f.rows[0] ? f.rows[0].length : 0, h = f.rows.length;
-  pre.style.left = Math.round(x - w * sizePx * AX / 2) + 'px';
-  pre.style.top = Math.round(y - h * sizePx * 1.0) + 'px';
+  const left = Math.round(x - w * sizePx * AX / 2), top = Math.round(y - h * sizePx);
+  pre.style.left = left + 'px';
+  pre.style.top = top + 'px';
   const born = performance.now() / 1000, grow = 2.6, fall = 2.4;
   const noise = f.rows.map(function (s) { return Array.prototype.map.call(s, function () { return Math.random(); }); });
   let last = '';
   return {
-    el: pre,
+    el: pre, x: left, y: top, w: w * sizePx * AX, h: h * sizePx, born: born, life: life,
     // returns false when it has gone
     tick: function (now) {
       const t = now - born;
@@ -206,4 +207,29 @@ export function bloom(container, f, x, y, sizePx, life) {
       return true;
     }
   };
+}
+
+/* ---- a picture remembered as letters ---- */
+const RAMP = " .'`,:;-~=+*o%#@";
+// img: an image; crop: the part of it on screen {x, y, w, h}; draws onto ctx (cleared) in cells of size px
+export function picture(ctx, img, crop, W, H, px) {
+  const cw = px * AX, cols = Math.ceil(W / cw), rows = Math.ceil(H / px);
+  const c = document.createElement('canvas'); c.width = cols; c.height = rows;
+  const x = c.getContext('2d', { willReadFrequently: true });
+  x.drawImage(img, crop.x, crop.y, crop.w, crop.h, 0, 0, cols, rows);
+  const d = x.getImageData(0, 0, cols, rows).data;
+  ctx.clearRect(0, 0, W, H);
+  ctx.font = '400 ' + px + 'px "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace';
+  ctx.textBaseline = 'top';
+  // brightness to letters, and to a green that goes white at the top
+  let lo = 1, hi = 0;
+  const L = new Float32Array(cols * rows);
+  for (let i = 0; i < cols * rows; i++) { const l = (d[i * 4] * 0.3 + d[i * 4 + 1] * 0.55 + d[i * 4 + 2] * 0.15) / 255; L[i] = l; lo = Math.min(lo, l); hi = Math.max(hi, l); }
+  const span = Math.max(0.15, hi - lo);
+  for (let r = 0; r < rows; r++) for (let q = 0; q < cols; q++) {
+    const v = (L[r * cols + q] - lo) / span, k = Math.min(RAMP.length - 1, Math.floor(v * RAMP.length));
+    if (k <= 0) continue;
+    ctx.fillStyle = 'hsl(' + (112 - v * 30).toFixed(0) + ',' + (60 - v * 40).toFixed(0) + '%,' + (58 + v * 40).toFixed(0) + '%)';
+    ctx.fillText(RAMP[k], q * cw, r * px);
+  }
 }
