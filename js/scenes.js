@@ -45,12 +45,14 @@ function hex(h, s, l) {
   return '#' + f(0) + f(8) + f(4);
 }
 
-export function createScenes(seed, nPhotos, worlds) {
+export function createScenes(seed, photos, worlds) {
+  // which photographs may be used: a list of their numbers (those that suit the screen), or how many there are
+  const pool = Array.isArray(photos) ? photos.slice() : Array.from({ length: photos }, function (_, i) { return i; });
   const R = rng(seed), list = [];
   let order = [], oi = 0, sinceWorld = 0, sincePage = 0, sinceAscii = 0, lastSlot = '', lastTrans = '';
   const usedLines = [];
   function photo() {
-    if (oi >= order.length) { order = []; for (let i = 0; i < nPhotos; i++) order.push(i); for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); const k = order[i]; order[i] = order[j]; order[j] = k; } oi = 0; }
+    if (oi >= order.length) { order = pool.slice(); for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); const k = order[i]; order[i] = order[j]; order[j] = k; } oi = 0; }
     return order[oi++];
   }
   function line() {
@@ -74,7 +76,7 @@ export function createScenes(seed, nPhotos, worlds) {
       i: i, kind: kind, photo: photo(),
       world: kind === 'world' ? worlds[Math.floor(R() * worlds.length)] : null,
       grade: [R() < 0.2 ? 0 : (R() - 0.55) * 0.62, 0.7 + R() * 0.5, R() * 2 - 1],
-      z0: 1.02 + R() * 0.14, z1: 1.0 + R() * 0.2, px: (R() - 0.5) * 1.4, py: (R() - 0.5) * 1.4, dx: (R() - 0.5) * 0.8, dy: (R() - 0.5) * 0.8,
+      z0: 1.0 + R() * 0.07, z1: 1.0 + R() * 0.1, px: (R() - 0.5) * 1.4, py: (R() - 0.5) * 1.4, dx: (R() - 0.5) * 0.8, dy: (R() - 0.5) * 0.8,
       tape: kind === 'photo' && R() < 0.15,
       sun: kind === 'photo' && R() < 0.14,
       center: [0.3 + R() * 0.4, 0.3 + R() * 0.4],

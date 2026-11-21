@@ -34,6 +34,7 @@ vec3 pick(sampler2D t, vec4 fit, float pix, vec2 res, vec2 uv) {
   vec2 w = vec2(vnoise(uv * 3.0 + uTime * 0.11) - 0.5, vnoise(uv * 3.0 - uTime * 0.09 + 7.0) - 0.5);
   uv += w * uFlow * 0.01;
   vec2 q = (uv - 0.5) * fit.xy + 0.5 + fit.zw;
+  q = 1.0 - abs(1.0 - mod(q, 2.0));
   if (pix > 0.5) { q = (floor(q * res) + 0.5) / res; return pow(texture2D(t, clamp(q, 0.002, 0.998)).rgb, vec3(0.4545)); }
   return texture2D(t, clamp(q, 0.002, 0.998)).rgb;
 }
@@ -62,13 +63,15 @@ void main() {
       float za = 1.0 + p * p * 3.2, zb = mix(2.4, 1.0, p);
       for (int i = 0; i < 6; i++) { float k = 1.0 + float(i) * 0.04 * tri; a += A(c + (u - c) / (za * k)); b += B(c + (u - c) / (zb * k)); }
       col = mix(a / 6.0 * (1.0 + p * 1.2), b / 6.0, smoothstep(0.38, 0.62, p));
-    } else if (type == 1) {     // torn into strips
+    } else if (type == 1) {     // torn into strips: each slides away like film, the next picture right behind it
       float n = 7.0 + floor(h1(vec2(uSeed, 3.0)) * 20.0), band = floor(uv.y * n);
-      float r = h1(vec2(band, uSeed + 1.0)), thr = 0.18 + r * 0.64, dir = h1(vec2(band, uSeed + 2.0)) < 0.5 ? -1.0 : 1.0;
-      float outA = smoothstep(thr - 0.3, thr, p), inB = 1.0 - smoothstep(thr, thr + 0.3, p);
-      vec2 ua = u + vec2(dir * outA * outA * (0.5 + r), 0.0), ub = u - vec2(dir * inB * inB * (0.5 + r), 0.0);
-      col = p < thr ? A(ua) : B(ub);
-      col.r = mix(col.r, (p < thr ? A(ua + vec2(0.01, 0.0)) : B(ub + vec2(0.01, 0.0))).r, tri);
+      float r = h1(vec2(band, uSeed + 1.0)), dir = h1(vec2(band, uSeed + 2.0)) < 0.5 ? -1.0 : 1.0;
+      float st = 0.08 + r * 0.5, s = smoothstep(st, st + 0.42, p), x = u.x + dir * s;
+      bool inA = x >= 0.0 && x <= 1.0;
+      vec2 q = vec2(inA ? x : x - dir, u.y);
+      col = inA ? A(q) : B(q);
+      col.r = mix(col.r, (inA ? A(q + vec2(0.008, 0.0)) : B(q + vec2(0.008, 0.0))).r, tri);
+      col += vec3(1.0, 1.0, 0.94) * smoothstep(0.01, 0.0, min(abs(x), abs(x - 1.0))) * 0.8 * step(0.002, s) * step(s, 0.998);
     } else if (type == 2) {     // coming apart into squares
       float cell = mix(1.0, 64.0, pow(tri, 1.4));
       vec2 g = uOut / cell, q = (floor(u * g) + 0.5) / g;
@@ -109,13 +112,13 @@ void main() {
 const OPTICS = `
 precision highp float;
 uniform sampler2D tScene;
-uniform float uTime, uAstig, uAngle, uGhost, uExpose, uBlind, uClosed, uSunAmt, uStreak, uLeak, uTape, uDim, uVel, uHaze, uFlare, uChroma, uZoomBlur, uSpec;
-uniform vec2 uSun, uGhostDir, uAspect, uMotion, uMotionC;
+uniform float uTime, uAstig, uAngle, uGhost, uExpose, uBlind, uClosed, uSunAmt, uStreak, uLeak, uTape, uDim, uVel, uHaze, uFlare, uChroma, uZoomBlur, uSpec, uSweepAng;
+uniform vec2 uSun, uSun2, uGhostDir, uAspect, uMotion, uMotionC, uSweep, uShake;
 varying vec2 vUv;
 ${COMMON}
-vec3 S(vec2 uv) { return texture2D(tScene, clamp(uv, 0.001, 0.999)).rgb; }
+vec3 S(vec2 uv) { uv = 1.0 - abs(1.0 - mod(uv, 2.0)); return texture2D(tScene, clamp(uv, 0.001, 0.999)).rgb; }
 void main() {
-  vec2 uv = vUv;
+  vec2 uv = vUv + uShake;
   if (uTape > 0.001) {
     float line = floor(uv.y * 240.0), tick = floor(uTime * 30.0);
     uv.x += (h1(vec2(line, tick)) - 0.5) * 0.004 * uTape + sin(uv.y * 30.0 + uTime * 2.0) * 0.0015 * uTape;
@@ -169,9 +172,23 @@ void main() {
   for (int i = 0; i < 6; i++) { float a = float(i) * 1.047 + 0.3; b += max(S(uv + vec2(cos(a), sin(a)) / uAspect * 0.035) - 0.55, 0.0); }
   col += b * 0.24;
   vec2 d = (uv - uSun) * uAspect;
-  float r = length(d), ang = atan(d.y, d.x);
-  float rays = pow(vnoise(vec2(ang * 7.0 + uTime * 0.05, 0.0)) * 0.6 + vnoise(vec2(ang * 23.0 - uTime * 0.03, 3.0)) * 0.4, 3.0);
-  col += vec3(1.0, 0.99, 0.86) * (exp(-r * 5.5) * 0.9 + exp(-r * 1.6) * 0.35 + rays * exp(-r * 2.2) * 0.9 + smoothstep(0.03, 0.0, abs(r - 0.22)) * 0.05) * uSunAmt;
+  float r = length(d);
+  // the light that follows you: never quite round, never still, soft at every edge, a little of it left behind
+  vec2 wq = d + (vec2(vnoise(uv * 2.6 + uTime * 0.21), vnoise(uv * 2.6 - uTime * 0.17 + 5.0)) - 0.5) * 0.18;
+  float th = uTime * 0.07 + sin(uTime * 0.19) * 0.8, cs = cos(th), sn = sin(th), sq = 1.0 + 0.5 * (0.5 + 0.5 * sin(uTime * 0.23));
+  vec2 e2 = vec2(cs * wq.x + sn * wq.y, -sn * wq.x + cs * wq.y) * vec2(1.0 / sq, sq);
+  float re = length(e2), ang = atan(e2.y, e2.x) + uTime * 0.04;
+  float rays = pow(vnoise(vec2(ang * 4.0 + uTime * 0.09, uTime * 0.05)) * 0.65 + vnoise(vec2(ang * 9.0 - uTime * 0.06, 3.0)) * 0.35, 2.2);
+  float breathe = 0.84 + 0.16 * sin(uTime * 0.61) + 0.14 * (vnoise(vec2(uTime * 0.4, 9.0)) - 0.5);
+  vec3 tint = mix(vec3(1.0, 0.98, 0.86), vec3(0.88, 1.0, 0.82), 0.5 + 0.5 * sin(uTime * 0.11));
+  float r2 = length((uv - uSun2) * uAspect);
+  col += tint * (exp(-re * 3.3) * 0.62 + exp(-re * 1.1) * 0.32 + rays * exp(-re * 1.8) * 0.42 + exp(-r2 * 2.4) * 0.24) * uSunAmt * breathe;
+  // light passing over everything, as if something moved in front of the sun
+  if (uSweep.y > 0.001) {
+    vec2 sd = vec2(cos(uSweepAng), sin(uSweepAng));
+    float v = dot((uv - 0.5) * uAspect, sd) / length(uAspect) + 0.5;
+    col += vec3(1.0, 0.99, 0.88) * exp(-pow((v - uSweep.x) / 0.1, 2.0)) * uSweep.y * (0.6 + 0.6 * vnoise(uv * 7.0 + uTime));
+  }
   // a flare: a long flat streak through the sun, and the lens's ghosts on the line through the middle
   if (uFlare > 0.001) {
     col += vec3(0.85, 1.0, 0.9) * exp(-abs(uv.y - uSun.y) * 90.0) * smoothstep(1.2, 0.0, abs(uv.x - uSun.x)) * uFlare * 0.9;
@@ -218,8 +235,9 @@ export function createEye(renderer) {
   const O = {
     tScene: { value: rt.texture }, uTime: { value: 0 }, uAstig: { value: 1 }, uAngle: { value: 0.3 }, uGhost: { value: 0.5 }, uExpose: { value: 1.6 },
     uBlind: { value: 0 }, uClosed: { value: 0 }, uSunAmt: { value: 0.6 }, uStreak: { value: 1 }, uLeak: { value: 0.5 }, uTape: { value: 0 }, uDim: { value: 0 }, uVel: { value: 0 },
-    uHaze: { value: 1 }, uFlare: { value: 0 }, uChroma: { value: 0 }, uZoomBlur: { value: 0 }, uSpec: { value: 0 },
+    uHaze: { value: 1 }, uFlare: { value: 0 }, uChroma: { value: 0 }, uZoomBlur: { value: 0 }, uSpec: { value: 0 }, uSweepAng: { value: 0 },
     uMotion: { value: new THREE.Vector2(0, 0) }, uMotionC: { value: new THREE.Vector2(0.5, 0.5) },
+    uSun2: { value: new THREE.Vector2(0.7, 0.75) }, uSweep: { value: new THREE.Vector2(0, 0) }, uShake: { value: new THREE.Vector2(0, 0) },
     uSun: { value: new THREE.Vector2(0.7, 0.75) }, uGhostDir: { value: new THREE.Vector2(0.006, 0.003) }, uAspect: { value: new THREE.Vector2(1, 1) }
   };
   const quad = function (frag, U) {
