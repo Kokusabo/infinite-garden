@@ -4,7 +4,7 @@ it was brighter than this.
 
 ---
 
-the photographs come from [Unsplash](https://unsplash.com) and are used under the Unsplash License.
+the photographs come from [Unsplash](https://unsplash.com) and are used under the Unsplash License. `footage/hd/` holds the same photographs at a larger size.
 everything else (the old 3d places, the flowers made of letters, the pages, the words, the way it is seen) is made by the page itself.
 fonts: IBM Plex Mono and Instrument Serif, SIL Open Font License 1.1 (see `fonts/`). three.js, MIT License (see `vendor/`).
 

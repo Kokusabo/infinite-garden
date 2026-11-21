@@ -1,6 +1,6 @@
 /* boot.js - asks the server which version of the garden is the newest, every time, so a
  * page kept by the browser never shows an old one; then loads that version. */
-const V = 11;   // used only if the question cannot be asked
+const V = 12;   // used only if the question cannot be asked
 fetch('version.json', { cache: 'no-store' })
   .then(function (r) { return r.ok ? r.json() : { v: V }; })
   .catch(function () { return { v: V }; })

@@ -120,9 +120,9 @@ vec3 S(vec2 uv) { uv = 1.0 - abs(1.0 - mod(uv, 2.0)); return texture2D(tScene, c
 void main() {
   vec2 uv = vUv + uShake;
   // the picture going liquid for a moment
-  if (uWave > 0.001) { uv.x += sin(uv.y * 38.0 + uTime * 11.0) * 0.014 * uWave; uv.y += sin(uv.x * 23.0 + uTime * 8.0) * 0.008 * uWave; }
+  if (uWave > 0.001) { uv.x += sin(uv.y * 26.0 + uTime * 6.0) * 0.007 * uWave; uv.y += sin(uv.x * 17.0 + uTime * 5.0) * 0.004 * uWave; }
   // or falling apart into big squares
-  if (uMosaic > 0.001) { vec2 g = vec2(uAspect.x, 1.0) * mix(240.0, 30.0, uMosaic); uv = (floor(uv * g) + 0.5) / g; }
+  if (uMosaic > 0.001) { vec2 g = vec2(uAspect.x, 1.0) * mix(320.0, 70.0, uMosaic); uv = (floor(uv * g) + 0.5) / g; }
   if (uTape > 0.001) {
     float line = floor(uv.y * 240.0), tick = floor(uTime * 30.0);
     uv.x += (h1(vec2(line, tick)) - 0.5) * 0.004 * uTape + sin(uv.y * 30.0 + uTime * 2.0) * 0.0015 * uTape;
@@ -197,20 +197,40 @@ void main() {
   col += (tint * glow + dcol) * (0.4 + uSunAmt * 0.7) * breathe;
   // rays out of the light: their number, width, length and direction never stay the same
   if (uRays > 0.001) {
-    vec2 cd = normalize(d + 1e-5);
-    float f1 = 2.0 + 1.6 * (0.5 + 0.5 * sin(uTime * 0.13)), f2 = 5.0 + 3.0 * (0.5 + 0.5 * sin(uTime * 0.09 + 2.0));
-    float n1 = vnoise(cd * f1 + vec2(uTime * 0.22, -uTime * 0.17)), n2 = vnoise(cd * f2 + vec2(-uTime * 0.31, uTime * 0.26) + 7.0);
-    float rays = pow(clamp(n1 * 0.65 + n2 * 0.35, 0.0, 1.0), 2.2 + 1.8 * (0.5 + 0.5 * sin(uTime * 0.21)));
-    float len = 0.25 + 0.3 * (0.5 + 0.5 * sin(uTime * 0.17)) + 0.35 * vnoise(cd * 2.0 + uTime * 0.4);
-    col += tint * rays * exp(-r / len) * smoothstep(0.0, 0.05, r) * uRays * 0.9 * breathe;
+    float a0 = atan(d.y, d.x), acc = 0.0;
+    for (int i = 0; i < 7; i++) {
+      float fi = float(i), h = h1(vec2(fi, 3.7)), sgn = mod(fi, 2.0) < 0.5 ? 1.0 : -1.0;
+      float ang = fi * 0.8976 + uTime * (0.12 + 0.16 * h) * sgn + sin(uTime * (0.21 + 0.1 * h) + fi) * 0.45;
+      float da = abs(mod(a0 - ang + 3.14159, 6.28318) - 3.14159);
+      float wid = 0.09 + 0.2 * (0.5 + 0.5 * sin(uTime * (0.43 + 0.3 * h) + fi * 1.7));
+      float len = 0.12 + 0.6 * (0.5 + 0.5 * sin(uTime * (0.37 + 0.25 * h) + fi * 2.3));
+      float on = smoothstep(-0.3, 0.7, sin(uTime * (0.29 + 0.17 * h) + fi * 2.9));
+      acc += exp(-(da / wid) * (da / wid) * 1.6) * exp(-r / len) * on;
+    }
+    col += tint * acc * smoothstep(0.0, 0.08, r) * uRays * 0.45 * breathe;
   }
   if (uGlare > 0.001) {
-    float rg = length((uv - uGlarePos) * uAspect), sz = mix(0.04, 0.55, uGlare);
-    col += vec3(1.0, 0.99, 0.93) * (exp(-rg / sz) * 4.5 + exp(-rg / (sz * 3.5)) * 1.4) * uGlare;
-    col += vec3(0.86, 0.96, 1.0) * exp(-abs(uv.y - uGlarePos.y) * 55.0) * exp(-abs(uv.x - uGlarePos.x) * 1.2) * uGlare * 2.0;
+    float rg = length((uv - uGlarePos) * uAspect), sz = mix(0.04, 0.22, uGlare);
+    col += vec3(1.0, 0.99, 0.93) * (exp(-rg / sz) * 1.5 + exp(-rg / (sz * 3.0)) * 0.45) * uGlare;
+    col += vec3(0.86, 0.96, 1.0) * exp(-abs(uv.y - uGlarePos.y) * 70.0) * exp(-abs(uv.x - uGlarePos.x) * 2.0) * uGlare * 0.7;
     vec2 gd = normalize((uGlarePos - 0.5) * uAspect + 1e-4);
     float grays = pow(vnoise(vec2(dot(normalize((uv - uGlarePos) * uAspect + 1e-5), vec2(gd.y, -gd.x)) * 9.0, uTime * 2.0)), 3.0);
-    col += vec3(1.0, 0.98, 0.9) * grays * exp(-rg * 2.0) * uGlare * 1.6;
+    col += vec3(1.0, 0.98, 0.9) * grays * exp(-rg * 2.5) * uGlare * 0.6;
+  }
+  {
+    vec2 ap = uv * uAspect;
+    float dirt = smoothstep(0.55, 0.85, fbm(ap * 3.0 + 3.1)) * 0.8;
+    col += vec3(1.0, 0.99, 0.9) * dirt * (exp(-r * 3.5) * 0.4 + exp(-length((uv - uGlarePos) * uAspect) * 3.0) * uGlare * 0.8) * (0.35 + uSunAmt);
+    vec3 pol = vec3(0.0);
+    for (int i = 0; i < 10; i++) {
+      float fi = float(i), hx = h1(vec2(fi, 1.3)), hy = h1(vec2(fi, 7.9)), hs = h1(vec2(fi, 4.4));
+      vec2 pp = vec2(fract(hx + uTime * (0.004 + 0.01 * hs) + sin(uTime * 0.3 + fi) * 0.01), fract(hy - uTime * (0.006 + 0.008 * hx) + sin(uTime * 0.23 + fi * 2.0) * 0.012));
+      float pr = 0.008 + 0.02 * hs, pd = length((uv - pp) * uAspect);
+      pol += vec3(1.0, 0.98, 0.88) * smoothstep(pr, 0.0, pd) * (0.03 + 0.2 * exp(-length((pp - uSun) * uAspect) * 3.0));
+    }
+    col += pol;
+    vec2 ce = (uv - 0.5) * dot(uv - 0.5, uv - 0.5) * 0.02;
+    col += (S(uv + ce) - S(uv - ce)) * vec3(0.5, 0.0, -0.5);
   }
   // shafts of light falling through leaves, drifting, widening and narrowing
   if (uShafts > 0.001) {
@@ -258,6 +278,7 @@ void main() {
   // what a light leaves on the eye after it: a dark, purple-ish blot where it was
   if (uAfterGlow > 0.001) { float ra = length((uv - uGlarePos) * uAspect); col = mix(col, col * vec3(0.5, 0.42, 0.56), smoothstep(0.42, 0.0, ra) * uAfterGlow * 0.75); }
   col = mix(col, vec3(1.0) - col * vec3(0.85, 0.7, 0.95), uInvert);   // for an instant, the negative
+  col *= 1.0 - 0.2 * pow(clamp(length((uv - 0.5) * vec2(1.0, 0.85)) * 1.35, 0.0, 1.0), 2.5);
   col = mix(col, vec3(0.985, 1.0, 0.95), uBlind);
   col += (h1(gl_FragCoord.xy + floor(uTime * 24.0)) - 0.5) * 0.025;
   gl_FragColor = vec4(col, 1.0);
