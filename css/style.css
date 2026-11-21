@@ -4,6 +4,7 @@
   --leaf: #2f5c38;
   --pale: #e9f3dd;
   --f-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --f-serif: "Instrument Serif", Georgia, "Times New Roman", serif;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; background: var(--pale); }
@@ -14,11 +15,7 @@ body { font: 300 1rem/1.4 var(--f-mono); color: #fff; -webkit-font-smoothing: an
 :focus-visible { outline: 1px dotted #fff; outline-offset: 3px; }
 
 /* the picture remembered as letters, coming out from where the sun is */
-.letters {
-  position: fixed; inset: 0; z-index: 2; width: 100%; height: 100%; pointer-events: none; opacity: 0;
-  -webkit-mask-image: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), #000 var(--mr, 0vmax), transparent calc(var(--mr, 0vmax) + 24vmax));
-  mask-image: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), #000 var(--mr, 0vmax), transparent calc(var(--mr, 0vmax) + 24vmax));
-}
+.letters { position: fixed; inset: 0; z-index: 2; width: 100%; height: 100%; pointer-events: none; opacity: 0; }
 .dust { position: fixed; inset: 0; z-index: 4; width: 100%; height: 100%; pointer-events: none; }
 /* the date a tape was made, burnt into it */
 .stamp {
@@ -40,13 +37,57 @@ body { font: 300 1rem/1.4 var(--f-mono); color: #fff; -webkit-font-smoothing: an
 /* what the sun leaves on the eye */
 .bloom.after { color: #2c5d36; text-shadow: 0 0 1px rgba(44, 93, 54, 0.6), 0 0 10px rgba(255, 255, 250, 0.9); transition: color 4s ease; }
 
-.words {
-  position: fixed; z-index: 4; margin: 0; max-width: min(28ch, calc(100vw - 32px));
-  font-size: clamp(0.82rem, 1.3vw, 1rem); letter-spacing: 0.14em; color: #fff;
-  text-shadow: 0 0 1px #fff, 0 0 8px rgba(28, 64, 32, 0.55);
-  opacity: 0; transition: opacity 2.2s ease; pointer-events: none;
+/* the words of each scene: one line in a large italic, a small note, sometimes a word in letters */
+.words { position: fixed; inset: 0; z-index: 3; pointer-events: none; }
+.tx { position: absolute; width: max-content; max-width: min(58vw, 860px); color: #fff; }
+.tx .line {
+  font: italic 400 clamp(2.4rem, 7.2vw, 6.6rem)/0.95 var(--f-serif); letter-spacing: -0.012em;
+  text-shadow: 0 0 2px rgba(14, 44, 22, 0.5), 0 0 22px rgba(14, 44, 22, 0.5), 0 4px 60px rgba(14, 44, 22, 0.35);
 }
-.words.on { opacity: 1; }
+.tx .w { display: inline-block; white-space: nowrap; }
+.tx .ch { display: inline-block; will-change: transform, opacity, filter; }
+.tx .note { margin-top: 1.1em; font: 400 0.74rem/1.4 var(--f-mono); letter-spacing: 0.14em; text-transform: lowercase; text-shadow: 0 0 2px rgba(14, 44, 22, 0.7), 0 0 10px rgba(14, 44, 22, 0.6); }
+.tx .banner { margin: 0 0 0.6em; font: 400 clamp(5px, 0.72vw, 9px)/1 var(--f-mono); color: #f4ffe8; text-shadow: 0 0 6px rgba(18, 52, 26, 0.45); white-space: pre; }
+.tx.on-dark .line { text-shadow: 0 0 18px rgba(170, 240, 150, 0.35); }
+.s-tl { top: 13vh; left: 7vw; }
+.s-tr { top: 13vh; right: 7vw; text-align: right; }
+.s-bl { bottom: 15vh; left: 7vw; }
+.s-br { bottom: 15vh; right: 7vw; text-align: right; }
+.s-c { top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; max-width: min(78vw, 1000px); }
+.s-v { top: 10vh; right: 6vw; writing-mode: vertical-rl; max-width: none; max-height: 80vh; }
+.s-v .ch { transform-origin: center; }
+.s-v .note { margin: 0 1.2em 0 0; }
+
+/* pages from a book about the garden */
+.pages { position: fixed; inset: 0; z-index: 5; pointer-events: none; }
+.page { position: absolute; inset: 0; background-color: var(--bg); color: var(--ink); overflow: hidden; visibility: hidden; }
+.page-in { position: absolute; inset: 0; display: grid; place-items: center; padding: 10vh 7vw; will-change: transform; }
+.pg-note { margin: 0; font: 400 0.72rem/1.4 var(--f-mono); letter-spacing: 0.16em; color: var(--soft); }
+.pg-line { margin: 0; font: italic 400 clamp(1.6rem, 3.6vw, 3rem)/1.05 var(--f-serif); color: var(--ink); max-width: 22ch; }
+.p-word .page-in { grid-template-rows: auto 1fr auto auto; justify-items: start; align-items: end; }
+.pg-word { margin: 0; align-self: center; justify-self: center; font: italic 400 clamp(6rem, 27vw, 24rem)/0.8 var(--f-serif); letter-spacing: -0.03em; color: var(--ink); }
+.pg-flower { position: absolute; right: 7vw; bottom: 8vh; margin: 0; font: 400 clamp(9px, 1vw, 13px)/1 var(--f-mono); color: var(--soft); }
+.p-contact .page-in { grid-template-rows: auto 1fr auto; gap: 4vh; justify-items: start; }
+.pg-sheet { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(10px, 2.4vw, 32px); width: 100%; align-items: end; }
+.pg-fig { margin: 0; }
+.pg-fig:nth-child(2) { transform: translateY(-6vh); }
+.pg-fig img { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: cover; }
+.pg-fig:nth-child(3) img { aspect-ratio: 1 / 1; }
+.pg-fig figcaption { margin-top: 8px; font: 400 0.68rem var(--f-mono); letter-spacing: 0.1em; color: var(--soft); }
+.p-greens .page-in { grid-template-rows: auto 1fr auto; justify-items: start; gap: 3vh; }
+.pg-title { margin: 0; font: italic 400 clamp(2.6rem, 7vw, 6rem)/0.9 var(--f-serif); }
+.pg-greens { margin: 0; padding: 0; list-style: none; width: 100%; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 10px 28px; align-content: center; }
+.pg-greens li { display: grid; grid-template-columns: 38px auto 1fr; gap: 12px; align-items: center; font: 400 0.74rem var(--f-mono); letter-spacing: 0.06em; }
+.pg-greens .sw { width: 38px; height: 26px; }
+.pg-greens .hx { color: var(--soft); }
+.p-banner .page-in { grid-template-rows: 1fr auto auto; gap: 2vh; }
+.pg-banner { margin: 0; font: 400 clamp(5px, 0.9vw, 11px)/1 var(--f-mono); color: #cdf3b8; text-shadow: 0 0 10px rgba(160, 240, 140, 0.35); white-space: pre; align-self: center; }
+
+.head { position: fixed; z-index: 6; top: max(14px, env(safe-area-inset-top, 0px)); left: max(16px, env(safe-area-inset-left, 0px)); margin: 0; font: italic 400 1.15rem var(--f-serif); color: #fff; text-shadow: 0 0 8px rgba(18, 52, 26, 0.55); pointer-events: none; }
+.hint { position: fixed; z-index: 6; left: 50%; bottom: max(18px, 4vh); margin: 0; transform: translateX(-50%); display: grid; justify-items: center; gap: 2px; font: 400 0.72rem var(--f-mono); letter-spacing: 0.3em; color: #fff; text-shadow: 0 0 8px rgba(18, 52, 26, 0.6); opacity: 0; transition: opacity 1.2s ease; pointer-events: none; }
+.hint.on { opacity: 0.85; }
+.hint i { font-style: normal; animation: fall 1.6s ease-in-out infinite; }
+@keyframes fall { 50% { transform: translateY(6px); opacity: 0.4; } }
 
 .corner { position: fixed; z-index: 6; right: max(14px, env(safe-area-inset-right, 0px)); bottom: max(12px, env(safe-area-inset-bottom, 0px)); display: flex; gap: 16px; }
 .quiet { padding: 4px 2px; border: 0; background: none; font: 300 0.72rem var(--f-mono); letter-spacing: 0.12em; color: #fff; opacity: 0.75; cursor: pointer; text-shadow: 0 0 6px rgba(28, 64, 32, 0.6); }
@@ -74,3 +115,10 @@ body { font: 300 1rem/1.4 var(--f-mono); color: #fff; -webkit-font-smoothing: an
 .open:hover, .open:focus-visible { letter-spacing: 0.34em; }
 @keyframes breathe { 50% { opacity: 0.45; } }
 @media (prefers-reduced-motion: reduce) { .open { animation: none; } }
+@media (max-width: 700px) {
+  .tx { max-width: 84vw; }
+  .s-tl, .s-bl { left: 6vw; } .s-tr, .s-br { right: 6vw; }
+  .pg-sheet { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pg-fig:nth-child(3) { display: none; }
+  .pg-word { font-size: 30vw; }
+}

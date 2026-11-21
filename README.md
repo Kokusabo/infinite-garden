@@ -5,8 +5,8 @@ it was brighter than this.
 ---
 
 the photographs come from [Unsplash](https://unsplash.com) and are used under the Unsplash License.
-everything else (the old 3d places, the flowers made of letters, the way it is seen) is made by the page itself.
-fonts: IBM Plex Mono, SIL Open Font License 1.1 (see `fonts/`). three.js, MIT License (see `vendor/`).
+everything else (the old 3d places, the flowers made of letters, the pages, the words, the way it is seen) is made by the page itself.
+fonts: IBM Plex Mono and Instrument Serif, SIL Open Font License 1.1 (see `fonts/`). three.js, MIT License (see `vendor/`).
 
 photographs, with thanks:
 

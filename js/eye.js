@@ -1,0 +1,213 @@
+/* eye.js - two passes. The first puts the picture together: one place turning into the
+ * next, and how it turns (falling into it, torn into strips, burnt white, smeared, opened
+ * like an eye, folded like a kaleidoscope...). The second is the eye itself: never in
+ * focus, every light streaked, the sun too close, and the faster you move the more it tears. */
+import * as THREE from '../vendor/three.module.min.js';
+
+const VERT = 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
+
+const COMMON = `
+float h1(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(h1(i), h1(i + vec2(1, 0)), f.x), mix(h1(i + vec2(0, 1)), h1(i + vec2(1, 1)), f.x), f.y); }
+float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { s += a * vnoise(p); p *= 2.03; a *= 0.5; } return s; }
+`;
+
+const COMPOSE = `
+precision highp float;
+uniform sampler2D tA, tB;
+uniform vec4 uFitA, uFitB;
+uniform float uPixA, uPixB;
+uniform vec2 uResA, uResB;
+uniform vec3 uGradeA, uGradeB;
+uniform float uP, uType, uSeed, uTime, uFlow;
+uniform vec2 uCenter, uAspect, uOut;
+varying vec2 vUv;
+${COMMON}
+vec3 hueSat(vec3 c, float h, float s) {
+  float Y = dot(c, vec3(0.299, 0.587, 0.114)), I = dot(c, vec3(0.596, -0.274, -0.322)), Q = dot(c, vec3(0.211, -0.523, 0.312));
+  float ch = cos(h), sh = sin(h), I2 = (I * ch - Q * sh) * s, Q2 = (I * sh + Q * ch) * s;
+  return vec3(Y + 0.956 * I2 + 0.621 * Q2, Y - 0.272 * I2 - 0.647 * Q2, Y - 1.106 * I2 + 1.703 * Q2);
+}
+vec3 grade(vec3 c, vec3 g) { return clamp(hueSat(c, g.x, g.y), 0.0, 1.0) * vec3(1.0 + g.z * 0.05, 1.0 + g.z * 0.012, 1.0 - g.z * 0.07); }
+vec3 pick(sampler2D t, vec4 fit, float pix, vec2 res, vec2 uv) {
+  vec2 w = vec2(vnoise(uv * 3.0 + uTime * 0.11) - 0.5, vnoise(uv * 3.0 - uTime * 0.09 + 7.0) - 0.5);
+  uv += w * uFlow * 0.01;
+  vec2 q = (uv - 0.5) * fit.xy + 0.5 + fit.zw;
+  if (pix > 0.5) { q = (floor(q * res) + 0.5) / res; return pow(texture2D(t, clamp(q, 0.002, 0.998)).rgb, vec3(0.4545)); }
+  return texture2D(t, clamp(q, 0.002, 0.998)).rgb;
+}
+vec3 A(vec2 uv) { return grade(pick(tA, uFitA, uPixA, uResA, uv), uGradeA); }
+vec3 B(vec2 uv) { return grade(pick(tB, uFitB, uPixB, uResB, uv), uGradeB); }
+vec2 kal(vec2 uv, float amt) {
+  vec2 d = (uv - 0.5) * uAspect; float r = length(d), a = atan(d.y, d.x), seg = 6.2831853 / 6.0;
+  float fa = abs(mod(a + uTime * 0.2, seg) - seg * 0.5);
+  return mix(uv, vec2(cos(fa), sin(fa)) * r / uAspect + 0.5, amt);
+}
+void main() {
+  vec2 uv = vUv;
+  float p = uP;
+  vec3 col;
+  if (p <= 0.0005) col = A(uv);
+  else if (p >= 0.9995) col = B(uv);
+  else {
+    float tri = 1.0 - abs(2.0 * p - 1.0);
+    int type = int(uType + 0.5);
+    // whatever the way, some rows slip while it happens
+    float row = floor(uv.y * 80.0);
+    float slip = step(1.0 - tri * 0.3, h1(vec2(row, floor(uTime * 20.0) + uSeed))) * (h1(vec2(row, uSeed)) - 0.5) * 0.1 * tri;
+    vec2 u = uv + vec2(slip, 0.0);
+    if (type == 0) {            // falling into it
+      vec2 c = uCenter; vec3 a = vec3(0.0), b = vec3(0.0);
+      float za = 1.0 + p * p * 3.2, zb = mix(2.4, 1.0, p);
+      for (int i = 0; i < 6; i++) { float k = 1.0 + float(i) * 0.04 * tri; a += A(c + (u - c) / (za * k)); b += B(c + (u - c) / (zb * k)); }
+      col = mix(a / 6.0 * (1.0 + p * 1.2), b / 6.0, smoothstep(0.38, 0.62, p));
+    } else if (type == 1) {     // torn into strips
+      float n = 7.0 + floor(h1(vec2(uSeed, 3.0)) * 20.0), band = floor(uv.y * n);
+      float r = h1(vec2(band, uSeed + 1.0)), thr = 0.18 + r * 0.64, dir = h1(vec2(band, uSeed + 2.0)) < 0.5 ? -1.0 : 1.0;
+      float outA = smoothstep(thr - 0.3, thr, p), inB = 1.0 - smoothstep(thr, thr + 0.3, p);
+      vec2 ua = u + vec2(dir * outA * outA * (0.5 + r), 0.0), ub = u - vec2(dir * inB * inB * (0.5 + r), 0.0);
+      col = p < thr ? A(ua) : B(ub);
+      col.r = mix(col.r, (p < thr ? A(ua + vec2(0.01, 0.0)) : B(ub + vec2(0.01, 0.0))).r, tri);
+    } else if (type == 2) {     // coming apart into squares
+      float cell = mix(1.0, 64.0, pow(tri, 1.4));
+      vec2 g = uOut / cell, q = (floor(u * g) + 0.5) / g;
+      float d = h1(floor(u * g) + uSeed);
+      col = (p + (d - 0.5) * 0.3 * tri) < 0.5 ? A(q) : B(q);
+    } else if (type == 3) {     // the next one grows through like light through leaves
+      float nz = fbm(u * vec2(uAspect.x, 1.0) * 2.6 + uSeed * 7.0), e = p * 1.3 - 0.15;
+      col = mix(B(u), A(u), smoothstep(e - 0.025, e + 0.025, nz));
+      col += vec3(1.0, 0.99, 0.84) * smoothstep(0.07, 0.0, abs(nz - e)) * 1.3;
+    } else if (type == 4) {     // burnt white
+      vec3 base = p < 0.5 ? A(u) : B(u);
+      col = mix(base * (1.0 + tri * 2.0), vec3(1.0, 1.0, 0.95), pow(tri, 0.7) * 0.94);
+    } else if (type == 5) {     // smeared one way
+      float ang = uSeed * 6.2831853; vec2 d = vec2(cos(ang), sin(ang)) / uAspect;
+      float k = tri * 0.42; vec3 a = vec3(0.0), b = vec3(0.0);
+      for (int i = 0; i < 8; i++) { float s = (float(i) / 7.0 - 0.5) * k; a += A(u + d * s); b += B(u + d * s); }
+      col = mix(a, b, smoothstep(0.42, 0.58, p)) / 8.0;
+    } else if (type == 6) {     // opened like an eye, from where the sun is
+      float dist = length((uv - uCenter) * uAspect), r = p * 1.5;
+      col = mix(A(u), B(u), smoothstep(r, r - 0.06, dist));
+      col += vec3(1.0, 1.0, 0.9) * smoothstep(0.04, 0.0, abs(dist - r)) * tri;
+    } else if (type == 7) {     // folded into a kaleidoscope and out again
+      col = p < 0.5 ? A(kal(u, smoothstep(0.0, 0.5, p))) : B(kal(u, smoothstep(1.0, 0.5, p)));
+      col += vec3(1.0, 1.0, 0.95) * pow(tri, 8.0) * 0.3;
+    } else if (type == 8) {     // blinds
+      float n = 6.0 + floor(h1(vec2(uSeed, 9.0)) * 10.0), x = uv.x * n, ci = floor(x), f = fract(x);
+      float q = clamp((p - h1(vec2(ci, uSeed)) * 0.4) / 0.6, 0.0, 1.0);
+      col = f < q ? B(u) : A(u);
+      col += vec3(1.0) * smoothstep(0.03, 0.0, abs(f - q)) * 0.6 * tri;
+    } else {                    // letters: it goes dark green; the letters are drawn on top, elsewhere
+      vec3 base = p < 0.5 ? A(u) : B(u);
+      col = mix(base, base * vec3(0.12, 0.25, 0.16) + vec3(0.01, 0.04, 0.02), smoothstep(0.0, 0.35, tri));
+    }
+  }
+  gl_FragColor = vec4(col, 1.0);
+}`;
+
+const OPTICS = `
+precision highp float;
+uniform sampler2D tScene;
+uniform float uTime, uAstig, uAngle, uGhost, uExpose, uBlind, uClosed, uSunAmt, uStreak, uLeak, uTape, uDim, uVel;
+uniform vec2 uSun, uGhostDir, uAspect;
+varying vec2 vUv;
+${COMMON}
+vec3 S(vec2 uv) { return texture2D(tScene, clamp(uv, 0.001, 0.999)).rgb; }
+void main() {
+  vec2 uv = vUv;
+  float band = 0.0;
+  if (uTape > 0.001) {
+    float line = floor(uv.y * 240.0), tick = floor(uTime * 30.0);
+    uv.x += (h1(vec2(line, tick)) - 0.5) * 0.004 * uTape + sin(uv.y * 30.0 + uTime * 2.0) * 0.0015 * uTape;
+    band = smoothstep(0.03, 0.0, abs(uv.y - fract(uTime * 0.06))) * uTape;
+    uv.x += band * (h1(vec2(line, tick + 5.0)) - 0.5) * 0.04;
+  }
+  // moving fast tears the picture along the way it moves
+  float va = clamp(abs(uVel) * 0.5, 0.0, 1.0);
+  vec2 d0 = normalize(mix(vec2(cos(uAngle), sin(uAngle)), vec2(0.0, 1.0), va));
+  vec2 dir = d0 / uAspect, per = vec2(-d0.y, d0.x) / uAspect;
+  float L = uAstig * 0.022 + va * 0.07;
+  vec3 col = vec3(0.0);
+  for (int i = 0; i < 16; i++) {
+    float fi = float(i), a = fi * 2.39996, r = sqrt((fi + 0.5) / 16.0);
+    col += S(uv + dir * cos(a) * r * L + per * sin(a) * r * L * 0.22);
+  }
+  col /= 16.0;
+  col.r = mix(col.r, S(uv + vec2(0.0, uVel * 0.02)).r, va);
+  col.b = mix(col.b, S(uv - vec2(0.0, uVel * 0.02)).b, va);
+  vec3 g = (S(uv + uGhostDir * 0.6) + S(uv + uGhostDir + dir * L * 0.5) + S(uv + uGhostDir - dir * L * 0.5)) / 3.0;
+  col = mix(col, max(col, g), uGhost * 0.55);
+  vec3 st = vec3(0.0);
+  for (int i = 1; i <= 5; i++) {
+    float s = float(i) / 5.0, f = (1.0 - s) * (1.0 - s);
+    st += (max(S(uv + dir * s * 0.16) - 0.72, 0.0) + max(S(uv - dir * s * 0.16) - 0.72, 0.0)) * f;
+    st += (max(S(uv + per * s * 0.06) - 0.75, 0.0) + max(S(uv - per * s * 0.06) - 0.75, 0.0)) * f * 0.5;
+  }
+  col += st * uStreak * vec3(1.0, 1.0, 0.92) * 0.75;
+  vec3 b = vec3(0.0);
+  for (int i = 0; i < 6; i++) { float a = float(i) * 1.047 + 0.3; b += max(S(uv + vec2(cos(a), sin(a)) / uAspect * 0.035) - 0.55, 0.0); }
+  col += b * 0.24;
+  vec2 d = (uv - uSun) * uAspect;
+  float r = length(d), ang = atan(d.y, d.x);
+  float rays = pow(vnoise(vec2(ang * 7.0 + uTime * 0.05, 0.0)) * 0.6 + vnoise(vec2(ang * 23.0 - uTime * 0.03, 3.0)) * 0.4, 3.0);
+  col += vec3(1.0, 0.99, 0.86) * (exp(-r * 5.5) * 0.9 + exp(-r * 1.6) * 0.35 + rays * exp(-r * 2.2) * 0.9 + smoothstep(0.03, 0.0, abs(r - 0.22)) * 0.05) * uSunAmt;
+  float lk = smoothstep(0.9, 0.0, abs(uv.x + sin(uTime * 0.07) * 0.6 - 0.5 + (uv.y - 0.5) * 0.5));
+  col += vec3(0.55, 0.62, 0.25) * lk * uLeak * 0.25;
+  if (uTape > 0.001) {
+    vec3 sm = (S(uv - vec2(0.007, 0.0)) + S(uv - vec2(0.0035, 0.0)) + col + S(uv + vec2(0.005, 0.0))) * 0.25;
+    float y = dot(col, vec3(0.299, 0.587, 0.114));
+    col = mix(col, (vec3(y) + (sm - dot(sm, vec3(0.299, 0.587, 0.114))) * 1.15) * vec3(0.97, 1.03, 0.9), uTape);
+  }
+  col = 1.0 - exp(-col * uExpose);
+  col = mix(col, vec3(dot(col, vec3(0.3, 0.55, 0.15))), 0.1);
+  col = col * vec3(0.94, 1.0, 0.9) + vec3(0.03, 0.07, 0.035) * (1.0 - col);
+  if (uTape > 0.001) {
+    col *= 1.0 - uTape * 0.1 * step(0.5, fract(gl_FragCoord.y * 0.5));
+    col = mix(col, vec3(h1(gl_FragCoord.xy + floor(uTime * 30.0))) * 0.7 + col * 0.5, band * 0.5);
+  }
+  col = mix(col, col * vec3(0.16, 0.3, 0.2) + vec3(0.01, 0.035, 0.02), uDim);
+  vec3 after = vec3(0.012, 0.045, 0.03) + (b * 0.35 + st * 0.25) * vec3(0.55, 0.85, 0.4) + vec3(0.25, 0.4, 0.15) * exp(-r * 3.0) * uSunAmt;
+  col = mix(col, after, uClosed);
+  col = mix(col, vec3(0.985, 1.0, 0.95), uBlind);
+  col += (h1(gl_FragCoord.xy + floor(uTime * 24.0)) - 0.5) * 0.025;
+  gl_FragColor = vec4(col, 1.0);
+}`;
+
+export function createEye(renderer) {
+  const blank = new THREE.DataTexture(new Uint8Array([200, 230, 190, 255]), 1, 1); blank.needsUpdate = true;
+  const rt = new THREE.WebGLRenderTarget(4, 4, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false });
+  const C = {
+    tA: { value: blank }, tB: { value: blank }, uFitA: { value: new THREE.Vector4(1, 1, 0, 0) }, uFitB: { value: new THREE.Vector4(1, 1, 0, 0) },
+    uPixA: { value: 0 }, uPixB: { value: 0 }, uResA: { value: new THREE.Vector2(1, 1) }, uResB: { value: new THREE.Vector2(1, 1) },
+    uGradeA: { value: new THREE.Vector3(0, 1, 0) }, uGradeB: { value: new THREE.Vector3(0, 1, 0) },
+    uP: { value: 0 }, uType: { value: 0 }, uSeed: { value: 0.3 }, uTime: { value: 0 }, uFlow: { value: 1 },
+    uCenter: { value: new THREE.Vector2(0.5, 0.5) }, uAspect: { value: new THREE.Vector2(1, 1) }, uOut: { value: new THREE.Vector2(1, 1) }
+  };
+  const O = {
+    tScene: { value: rt.texture }, uTime: { value: 0 }, uAstig: { value: 1 }, uAngle: { value: 0.3 }, uGhost: { value: 0.5 }, uExpose: { value: 1.6 },
+    uBlind: { value: 0 }, uClosed: { value: 0 }, uSunAmt: { value: 0.6 }, uStreak: { value: 1 }, uLeak: { value: 0.5 }, uTape: { value: 0 }, uDim: { value: 0 }, uVel: { value: 0 },
+    uSun: { value: new THREE.Vector2(0.7, 0.75) }, uGhostDir: { value: new THREE.Vector2(0.006, 0.003) }, uAspect: { value: new THREE.Vector2(1, 1) }
+  };
+  const quad = function (frag, U) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({ uniforms: U, vertexShader: VERT, fragmentShader: frag, depthTest: false, depthWrite: false }));
+    m.frustumCulled = false; const s = new THREE.Scene(); s.add(m); return s;
+  };
+  const s1 = quad(COMPOSE, C), s2 = quad(OPTICS, O), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), size = new THREE.Vector2();
+  return {
+    compose: C, optics: O,
+    size: function () { renderer.getDrawingBufferSize(size); rt.setSize(Math.max(4, size.x), Math.max(4, size.y)); C.uOut.value.copy(size); },
+    render: function () { renderer.setRenderTarget(rt); renderer.render(s1, cam); renderer.setRenderTarget(null); renderer.render(s2, cam); }
+  };
+}
+
+// how a picture of size (w, h) covers a screen of aspect a, zoomed by z and moved by (px, py)
+export function cover(w, h, a, z, px, py, out) {
+  const ia = w / h;
+  let sx = 1, sy = 1;
+  if (a > ia) sy = ia / a; else sx = a / ia;
+  sx /= z; sy /= z;
+  return out.set(sx, sy, px * (1 - sx) / 2, py * (1 - sy) / 2);
+}
+
+export const TRANSITIONS = ['fall', 'strips', 'squares', 'grow', 'burn', 'smear', 'eye', 'kaleidoscope', 'blinds', 'letters'];

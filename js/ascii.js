@@ -211,25 +211,71 @@ export function bloom(container, f, x, y, sizePx, life) {
 
 /* ---- a picture remembered as letters ---- */
 const RAMP = " .'`,:;-~=+*o%#@";
-// img: an image; crop: the part of it on screen {x, y, w, h}; draws onto ctx (cleared) in cells of size px
-export function picture(ctx, img, crop, W, H, px) {
-  const cw = px * AX, cols = Math.ceil(W / cw), rows = Math.ceil(H / px);
+const SHADES = 7;
+// letters are cut once from a strip of glyphs in a few greens, then stamped: fast enough to redraw often
+export function createLetters(canvas) {
+  const ctx = canvas.getContext('2d');
+  let atlas = null, apx = 0, adpr = 0, cw = 0;
+  const probe = document.createElement('canvas'), px2 = probe.getContext('2d', { willReadFrequently: true });
+  function build(px, dpr) {
+    apx = px; adpr = dpr; cw = Math.ceil(px * AX * dpr);
+    const ch = Math.ceil(px * dpr);
+    atlas = document.createElement('canvas'); atlas.width = cw * RAMP.length; atlas.height = ch * SHADES;
+    const x = atlas.getContext('2d');
+    x.font = '400 ' + (px * dpr) + 'px "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace'; x.textBaseline = 'top';
+    for (let s = 0; s < SHADES; s++) {
+      const v = s / (SHADES - 1);
+      x.fillStyle = 'hsl(' + (112 - v * 30).toFixed(0) + ',' + (62 - v * 42).toFixed(0) + '%,' + (56 + v * 42).toFixed(0) + '%)';
+      for (let k = 1; k < RAMP.length; k++) x.fillText(RAMP[k], k * cw, s * ch);
+    }
+  }
+  return {
+    // img: an image; crop: the part on screen; W, H: css size; px: cell height; jitter: how many cells flicker
+    paint: function (img, crop, W, H, px, jitter) {
+      const dpr = canvas.width / W;
+      if (!atlas || apx !== px || adpr !== dpr) build(px, dpr);
+      const cols = Math.ceil(W / (px * AX)), rows = Math.ceil(H / px);
+      probe.width = cols; probe.height = rows;
+      px2.drawImage(img, crop.x, crop.y, crop.w, crop.h, 0, 0, cols, rows);
+      const d = px2.getImageData(0, 0, cols, rows).data;
+      let lo = 1, hi = 0;
+      const L = new Float32Array(cols * rows);
+      for (let i = 0; i < cols * rows; i++) { const l = (d[i * 4] * 0.3 + d[i * 4 + 1] * 0.55 + d[i * 4 + 2] * 0.15) / 255; L[i] = l; if (l < lo) lo = l; if (l > hi) hi = l; }
+      const span = Math.max(0.15, hi - lo), ch = Math.ceil(px * adpr), dw = cw / adpr, dh = ch / adpr;
+      ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (let r = 0; r < rows; r++) for (let q = 0; q < cols; q++) {
+        let v = (L[r * cols + q] - lo) / span;
+        if (jitter && Math.random() < jitter) v = Math.min(1, v + (Math.random() - 0.3) * 0.5);
+        const k = Math.min(RAMP.length - 1, Math.floor(v * RAMP.length));
+        if (k <= 0) continue;
+        const sh = Math.min(SHADES - 1, Math.floor(v * SHADES));
+        ctx.drawImage(atlas, k * cw, sh * ch, cw, ch, Math.round(q * px * AX * adpr), Math.round(r * px * adpr), cw, ch);
+      }
+      void dw; void dh;
+    },
+    clear: function () { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height); }
+  };
+}
+
+/* ---- a word written large, out of small letters ---- */
+const INK = " .:-=+*#%@";
+export function banner(word, rows) {
+  const font = 'italic 400 100px "Instrument Serif", Georgia, serif';
+  const m = document.createElement('canvas').getContext('2d'); m.font = font;
+  const tw = m.measureText(word).width, th = 100;
+  const cols = Math.max(8, Math.round(rows * (tw / th) / AX * 1.05));
   const c = document.createElement('canvas'); c.width = cols; c.height = rows;
   const x = c.getContext('2d', { willReadFrequently: true });
-  x.drawImage(img, crop.x, crop.y, crop.w, crop.h, 0, 0, cols, rows);
-  const d = x.getImageData(0, 0, cols, rows).data;
-  ctx.clearRect(0, 0, W, H);
-  ctx.font = '400 ' + px + 'px "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace';
-  ctx.textBaseline = 'top';
-  // brightness to letters, and to a green that goes white at the top
-  let lo = 1, hi = 0;
-  const L = new Float32Array(cols * rows);
-  for (let i = 0; i < cols * rows; i++) { const l = (d[i * 4] * 0.3 + d[i * 4 + 1] * 0.55 + d[i * 4 + 2] * 0.15) / 255; L[i] = l; lo = Math.min(lo, l); hi = Math.max(hi, l); }
-  const span = Math.max(0.15, hi - lo);
-  for (let r = 0; r < rows; r++) for (let q = 0; q < cols; q++) {
-    const v = (L[r * cols + q] - lo) / span, k = Math.min(RAMP.length - 1, Math.floor(v * RAMP.length));
-    if (k <= 0) continue;
-    ctx.fillStyle = 'hsl(' + (112 - v * 30).toFixed(0) + ',' + (60 - v * 40).toFixed(0) + '%,' + (58 + v * 40).toFixed(0) + '%)';
-    ctx.fillText(RAMP[k], q * cw, r * px);
+  x.font = 'italic 400 ' + (rows * 1.05) + 'px "Instrument Serif", Georgia, serif';
+  x.textBaseline = 'middle'; x.fillStyle = '#fff';
+  x.save(); x.scale(cols / (tw * rows / th * 1.0 + 1e-3) * 0.97, 1); x.fillText(word, 0, rows * 0.55); x.restore();
+  const d = x.getImageData(0, 0, cols, rows).data, out = [];
+  for (let r = 0; r < rows; r++) {
+    let line = '';
+    for (let q = 0; q < cols; q++) { const a = d[(r * cols + q) * 4 + 3] / 255; line += INK[Math.min(INK.length - 1, Math.floor(a * INK.length))]; }
+    out.push(line.replace(/\s+$/, ''));
   }
+  while (out.length && !out[0].trim()) out.shift();
+  while (out.length && !out[out.length - 1].trim()) out.pop();
+  return out.join('\n');
 }

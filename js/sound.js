@@ -85,6 +85,34 @@ export function createSound() {
       o.start(t0); o.stop(t0 + 2.5);
     });
   }
+  // air rushing past: noise through a filter that sweeps, up or down
+  function whoosh(k, up) {
+    if (!ac || !on) return;
+    const t0 = ac.currentTime + 0.01, dur = 0.45 + k * 0.5;
+    const n = ac.createBufferSource(); n.buffer = noise();
+    const bp = filter('bandpass', 400, 1.2), g = gain(0);
+    bp.frequency.setValueAtTime(up ? 300 : 2600, t0); bp.frequency.exponentialRampToValueAtTime(up ? 2800 : 260, t0 + dur);
+    g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(0.1 + k * 0.16, t0 + dur * 0.45); g.gain.linearRampToValueAtTime(0, t0 + dur);
+    n.connect(bp); bp.connect(g); g.connect(master); g.connect(verb); n.start(t0, Math.random() * 2); n.stop(t0 + dur + 0.05);
+  }
+  // something soft and heavy landing
+  function thump(k) {
+    if (!ac || !on) return;
+    const t0 = ac.currentTime + 0.01, o = ac.createOscillator(), g = gain(0);
+    o.frequency.setValueAtTime(110, t0); o.frequency.exponentialRampToValueAtTime(38, t0 + 0.5);
+    g.gain.setValueAtTime(0.35 * k, t0); g.gain.setTargetAtTime(0, t0 + 0.02, 0.18);
+    o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + 0.9);
+  }
+  // a small glass bell, for a page
+  function bell() {
+    if (!ac || !on) return;
+    const t0 = ac.currentTime + 0.01, f = [1046.5, 1174.7, 1318.5, 1568][Math.floor(Math.random() * 4)];
+    [1, 2.76, 5.4].forEach(function (m, i) {
+      const o = ac.createOscillator(), g = gain(0); o.frequency.value = f * m;
+      g.gain.setValueAtTime(0.08 / (i + 1), t0); g.gain.setTargetAtTime(0, t0 + 0.01, 0.5 / (i + 1));
+      o.connect(g); g.connect(master); g.connect(verb); o.start(t0); o.stop(t0 + 2.5);
+    });
+  }
   // an iPhone on silent mutes page sound unless the page says it plays on purpose
   let unlocked = false, trying = false;
   function unlockPhone() {
@@ -117,7 +145,7 @@ export function createSound() {
     start: function () { if (!ac || ac.state !== 'running' || !on) setOn(true); },
     toggle: function () { return setOn(!on); },
     isOn: function () { return on; },
-    play: play, skip: skip,
+    play: play, skip: skip, whoosh: whoosh, thump: thump, bell: bell,
     // how worn the tape is right now, and how much of the garden is in the air
     mood: function (tape, t) {
       if (!ac || !on) return;
