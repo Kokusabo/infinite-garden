@@ -4,10 +4,10 @@
  * pages from a book about all this. Touch, and a flower made of letters grows there.
  * Hold, and your eyes close. Type, and what you type grows. It does not end. */
 import * as THREE from '../vendor/three.module.min.js';
-import { createEye, cover, TRANSITIONS } from './eye.js?v=5';
+import { createEye, cover, TRANSITIONS } from './eye.js?v=7';
 import { createWorld, WORLD_NAMES } from './worlds.js?v=6';
 import { makeFlower, bloom, createLetters } from './ascii.js?v=5';
-import { createScenes } from './scenes.js?v=4';
+import { createScenes } from './scenes.js?v=5';
 import { createType } from './type.js?v=4';
 import { createPages } from './pages.js?v=3';
 import { createSound } from './sound.js?v=3';
@@ -25,7 +25,7 @@ const ASPECT = [1.33, 0.75, 0.67, 1.5, 0.67, 0.45, 1.28, 0.75, 1.5, 0.67, 0.67, 
   0.75, 1.5, 1.5, 1.5, 0.67, 0.67, 1.39, 1.5, 0.75, 1.5, 1.55, 1.5, 0.75, 0.8, 0.67, 1.33, 0.67, 1.33, 1.5, 1.78, 1.5, 1.5, 1.5, 0.67, 1.5, 0.75, 1.42];
 function suited() {
   const a = window.innerWidth / window.innerHeight, out = [];
-  for (let i = 0; i < FOOTAGE; i++) if (a >= 1.15 ? ASPECT[i] >= 1.2 : a <= 0.87 ? ASPECT[i] < 1 : true) out.push(i);
+  for (let i = 0; i < FOOTAGE; i++) if (a >= 1 ? ASPECT[i] >= 1.2 : ASPECT[i] < 1) out.push(i);
   return out;
 }
 const footage = function (n) { return 'footage/' + String(n).padStart(2, '0') + '.jpg?v=1'; };
@@ -121,7 +121,7 @@ function run() {
   // where a scene's picture sits on the screen: a slow drift, and a push as you scroll past it
   function fit(s, src, d, t, out) {
     const a = window.innerWidth / window.innerHeight;
-    const z = (lerp(s.z0, s.z1, 0.5 + 0.5 * Math.sin(t * 0.05 + s.seed * 6.28)) + Math.abs(d) * 0.08) * (1 + punch * 0.14);
+    const z = (lerp(s.z0, s.z1, 0.5 + 0.5 * Math.sin(t * 0.05 + s.seed * 6.28)) + Math.abs(d) * 0.04) * (1 + punch * 0.12);
     const px = s.px + s.dx * Math.sin(t * 0.031 + s.seed * 3), py = s.py + s.dy * Math.cos(t * 0.027 + s.seed * 5) - d * 0.5;
     return cover(src.w, src.h, a, z, Math.max(-1, Math.min(1, px)), Math.max(-1, Math.min(1, py)), out);
   }
@@ -233,7 +233,7 @@ function run() {
 
   /* ---- the eye's own life ---- */
   let closed = 0, angle = rand(0, Math.PI), angleV = rand(-0.05, 0.05);
-  let blinkT0 = -1, nextBlink = rand(20, 40), twice = false;
+  let blinkT0 = -1, nextBlink = rand(10, 20), twice = false, lowAt = -1, whipDir = 0;
   // how each kind of scene is seen: mostly clear; sometimes soft; sometimes smeared the astigmatic way
   const LOOK = {
     sharp: { astig: 0, ghost: 0, streak: 0.55, haze: 0.4, sun: 0.34, flow: 0.18 },
@@ -241,12 +241,17 @@ function run() {
     astig: { astig: 1.15, ghost: 0.6, streak: 1.1, haze: 1, sun: 0.62, flow: 1 }
   };
   // and things that happen to the eye while you look: flashes, a flare, colours slipping, a moment out of focus
-  const EVENTS = { flash: 0.5, flare: 1.8, chroma: 0.75, blur: 1.6, double: 1.3, punch: 0.4, leak: 2.2, sweep: 1.7, shake: 0.7, tape: 0.9, glow: 2.2 };
-  const EVENT_NAMES = ['flash', 'flash', 'flare', 'flare', 'chroma', 'blur', 'double', 'punch', 'punch', 'leak', 'sweep', 'sweep', 'shake', 'tape', 'glow', 'glow'];
-  const ARRIVALS = ['flash', 'punch', 'chroma', 'flare', 'sweep', 'glow', 'shake'];
+  const EVENTS = { flash: 0.5, flare: 1.8, chroma: 0.8, blur: 1.6, double: 1.3, punch: 0.4, leak: 2.2, sweep: 1.5, shake: 0.7, tape: 0.9, glow: 2.2, invert: 0.4, mosaic: 0.9, wave: 1.4, ascii: 1.7, stutter: 0.7,
+    lowfps: 1.8, strobe: 1.0, flicker: 1.3, blink: 0.9, whip: 0.6, rays: 2.6 };
+  const EVENT_NAMES = ['flash', 'flash', 'flare', 'flare', 'chroma', 'blur', 'double', 'punch', 'leak', 'sweep', 'sweep', 'shake', 'tape', 'glow', 'invert', 'mosaic', 'wave', 'ascii', 'ascii', 'stutter',
+    'lowfps', 'lowfps', 'strobe', 'flicker', 'flicker', 'blink', 'whip', 'whip', 'rays', 'rays'];
+  const ARRIVALS = ['flash', 'punch', 'chroma', 'flare', 'sweep', 'glow', 'shake', 'invert', 'mosaic', 'ascii', 'stutter', 'wave', 'lowfps', 'strobe', 'whip', 'rays'];
   let evK = 0;
   let evName = '', evT0 = -1, evHold = -1, nextEvent = rand(2.5, 5), punch = 0;
-  function happen(name, t) { evName = name; evT0 = t; evHold = -1; O.uSweepAng.value = Math.random() * Math.PI * 2; }
+  function happen(name, t) {
+    evName = name; evT0 = t; evHold = -1; O.uSweepAng.value = Math.random() * Math.PI * 2; whipDir = Math.random() * Math.PI * 2;
+    if (name === 'blink' && blinkT0 < 0) { blinkT0 = t; twice = Math.random() < 0.5; }
+  }
   let blindT0 = -1, blindPlanted = false, blindFor = -1, lastHalf = '', lastNear = -1, holdAt = -1, holdVel = 0;
 
   if (/[?&]debug\b/.test(location.search)) {
@@ -326,28 +331,43 @@ function run() {
       if (k >= 1) evT0 = -1;
     }
     const e = function (n) { return evT0 >= 0 && evName === n ? ev : 0; };
-    punch = e('punch');
+    // a jolt: one push in, or several in a row
+    punch = e('punch') + (e('stutter') > 0 ? (Math.floor(evK * 7) % 2) * 0.9 : 0);
+    O.uInvert.value = e('invert') > 0 ? (evK < 0.3 || (evK > 0.55 && evK < 0.75) ? 0.9 : 0) : 0;
+    O.uMosaic.value = e('mosaic');
+    O.uWave.value = e('wave');
     O.uAngle.value = angle;
     O.uAstig.value = (look('astig') * (1.0 + 0.3 * Math.sin(t * 0.21)) + e('blur') * 1.4) * (1 - tri * 0.55);
     O.uGhost.value = Math.max(look('ghost') * (0.8 + 0.2 * Math.sin(t * 0.13 + 1)), e('double'));
-    O.uGhostDir.value.set(Math.cos(t * 0.05) * 0.008 * (1 + e('double') * 3), Math.sin(t * 0.07) * 0.005 * (1 + e('double') * 3));
+    O.uGhostDir.value.set(Math.cos(t * 0.05) * 0.008 * (1 + e('double') * 5), Math.sin(t * 0.07) * 0.005 * (1 + e('double') * 5));
     O.uFlare.value = e('flare');
-    O.uChroma.value = e('chroma') * (1.5 + Math.random() * 0.8) + (punch + e('flash')) * 0.8 + tri * 0.4;
+    O.uChroma.value = e('chroma') * (2.2 + Math.random() * 1.2) + (punch + e('flash') + e('invert')) * 0.9 + e('wave') * 0.6 + tri * 0.4;
     O.uHaze.value = Math.max(look('haze'), tri * 0.6, e('glow'));
-    O.uSweep.value.set(-0.25 + evK * 1.5, e('sweep') * 1.1);
+    O.uSweep.value.set(-0.25 + evK * 1.5, e('sweep') * 1.6);
     const sh = e('shake');
-    O.uShake.value.set((Math.sin(t * 41) * 0.006 + (Math.random() - 0.5) * 0.006) * sh, (Math.cos(t * 37) * 0.008 + (Math.random() - 0.5) * 0.006) * sh);
+    O.uShake.value.set((Math.sin(t * 41) * 0.012 + (Math.random() - 0.5) * 0.012) * sh, (Math.cos(t * 37) * 0.016 + (Math.random() - 0.5) * 0.012) * sh);
     C.uFlow.value = look('flow');
     O.uVel.value = reduced ? 0 : Math.max(-2.5, Math.min(2.5, vel * 0.32));
     // motion blur: the faster you go, the longer the smear; every change of picture also pulls a little towards you
     {
       const sp = reduced ? 0 : Math.min(1, Math.abs(vel) / 4.5), kick = reduced ? 0 : tri;
-      const len = Math.min(0.26, sp * 0.17 + kick * 0.06 + punch * 0.05), tilt = (A.seed - 0.5) * 0.5, sgn = vel < 0 ? -1 : 1;
+      const len = Math.min(0.34, sp * 0.24 + kick * 0.1 + punch * 0.06), tilt = (A.seed - 0.5) * 0.5, sgn = vel < 0 ? -1 : 1;
       O.uMotion.value.set(Math.sin(tilt) * len * sgn / (window.innerWidth / window.innerHeight), Math.cos(tilt) * len * sgn);
-      O.uZoomBlur.value = Math.min(0.22, kick * 0.1 + sp * 0.06 + punch * 0.12);
+      O.uZoomBlur.value = Math.min(0.28, kick * 0.15 + sp * 0.08 + punch * 0.12);
       O.uMotionC.value.set(A.center ? lerp(A.center[0], B.center ? B.center[0] : 0.5, p) : 0.5, A.center ? lerp(A.center[1], B.center ? B.center[1] : 0.5, p) : 0.5);
       O.uSpec.value = Math.min(0.7, sp * 0.6 + kick * 0.25);
+      // a whip pan: the picture is thrown sideways and back, smeared all the way
+      const wh = e('whip');
+      if (wh > 0) {
+        const wx = Math.cos(whipDir), wy = Math.sin(whipDir), sw = Math.abs(Math.cos(Math.PI * evK));
+        O.uShake.value.x += wx * 0.09 * Math.sin(Math.PI * evK); O.uShake.value.y += wy * 0.09 * Math.sin(Math.PI * evK);
+        O.uMotion.value.x += wx * 0.32 * sw; O.uMotion.value.y += wy * 0.32 * sw;
+        O.uSpec.value = Math.max(O.uSpec.value, 0.5 * sw);
+      }
     }
+    // the light's rays come and go; some places have shafts of light falling through leaves
+    O.uRays.value = (0.35 + 0.35 * (0.5 + 0.5 * Math.sin(t * 0.11)) + 0.25 * Math.sin(t * 0.37 + 1.0)) * (0.6 + look('sun')) + e('rays') * 1.6;
+    O.uShafts.value = lerp(A.seed > 0.5 ? 0.4 + A.seed * 0.6 : 0, B.seed > 0.5 ? 0.4 + B.seed * 0.6 : 0, p) * (0.7 + 0.3 * Math.sin(t * 0.23)) + e('rays') * 0.7;
     if (!mouse) sunT.set(0.5 + Math.sin(t * 0.031) * 0.38, 0.62 + Math.sin(t * 0.047) * 0.3);
     // it follows lazily and wanders round where it should be; a fainter part of it trails behind
     sunW.set(sunT.x + Math.sin(t * 0.37) * 0.04 + Math.sin(t * 0.91) * 0.015, sunT.y + Math.cos(t * 0.29) * 0.035 + Math.sin(t * 0.73) * 0.012);
@@ -373,13 +393,16 @@ function run() {
     }
     const opening = 1 - smooth((t - openedAt) / 3.5);
     flash = Math.max(0, flash - dt * 0.9);
-    O.uBlind.value = Math.min(1, Math.max(blind, opening * 0.95, flash, e('flash') * 0.93));
-    O.uExpose.value = expose * (1 + opening * 1.5) * (1 + tri * 0.25) * (1 + e('flash') * 1.6 + e('flare') * 0.35 + e('glow') * 0.45 + e('sweep') * 0.2);
+    // strobe: a few hard flashes in a row; flicker: the light failing and catching, frame by frame
+    const strobe = e('strobe') > 0 && Math.floor(evK * 9) % 2 === 0 ? 0.88 : 0;
+    const fl = e('flicker') > 0 ? (Math.random() < 0.3 ? 0.3 : 0.8 + Math.random() * 0.9) : 1;
+    O.uBlind.value = Math.min(1, Math.max(blind, opening * 0.95, flash, e('flash') * 0.93, strobe));
+    O.uExpose.value = expose * (1 + opening * 1.5) * (1 + tri * 0.25) * (1 + e('flash') * 1.6 + e('flare') * 0.35 + e('glow') * 0.45 + e('sweep') * 0.2) * fl;
     O.uSunAmt.value = look('sun') * (1 + 0.35 * Math.sin(t * 0.23)) + blind * 0.6 + e('flare') * 0.4;
 
     // blinking, and the eyes held shut
     let lid = 0;
-    if (!reduced && blinkT0 < 0 && t - openedAt > nextBlink) { blinkT0 = t; twice = Math.random() < 0.3; nextBlink = t - openedAt + rand(25, 55); }
+    if (!reduced && blinkT0 < 0 && t - openedAt > nextBlink) { blinkT0 = t; twice = Math.random() < 0.3; nextBlink = t - openedAt + rand(12, 26); }
     if (blinkT0 >= 0) {
       const b = t - blinkT0, one = function (x) { return x < 0 ? 0 : x < 0.16 ? smooth(x / 0.16) : x < 0.3 ? 1 : x < 0.62 ? 1 - smooth((x - 0.3) / 0.32) : 0; };
       lid = Math.max(one(b), twice ? one(b - 0.75) : 0);
@@ -396,6 +419,11 @@ function run() {
       if (w > la) { la = w; lk = 'a' + s.i; ls = j ? sb : sa; lf = j ? C.uFitB.value : C.uFitA.value; }
       dim = Math.max(dim, w * 0.86);
     });
+    if (e('ascii') > 0 && A.kind === 'photo') {
+      const w = Math.min(1, e('ascii') * 1.6);
+      if (w > la) { la = w; lk = 'e' + A.i; ls = sa; lf = C.uFitA.value; }
+      dim = Math.max(dim, w * 0.8);
+    }
     if (trans === 9 && p > 0 && p < 1) {
       const w = smooth(tri * 1.8);
       if (w > la) { la = w; lk = 't' + ia + (p < 0.5 ? 'a' : 'b'); ls = p < 0.5 ? sa : sb; lf = p < 0.5 ? C.uFitA.value : C.uFitB.value; }
@@ -415,7 +443,9 @@ function run() {
     // words and pages follow the scroll
     type.update(pos, t, get);
     const covered = pages.update(pos, t, get);
-    if (!covered) eye.render();
+    let step = true;
+    if (e('lowfps') > 0) { if (t - lowAt < 1 / 7) step = false; else lowAt = t; }
+    if (!covered && step) eye.render();
 
     // flowers, and their seeds, blown about by how fast you go
     for (let i = blooms.length - 1; i >= 0; i--) {

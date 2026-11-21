@@ -76,7 +76,7 @@ export function createScenes(seed, photos, worlds) {
       i: i, kind: kind, photo: photo(),
       world: kind === 'world' ? worlds[Math.floor(R() * worlds.length)] : null,
       grade: [R() < 0.2 ? 0 : (R() - 0.55) * 0.62, 0.7 + R() * 0.5, R() * 2 - 1],
-      z0: 1.0 + R() * 0.07, z1: 1.0 + R() * 0.1, px: (R() - 0.5) * 1.4, py: (R() - 0.5) * 1.4, dx: (R() - 0.5) * 0.8, dy: (R() - 0.5) * 0.8,
+      z0: 1.0 + R() * 0.04, z1: 1.0 + R() * 0.06, px: (R() - 0.5) * 1.4, py: (R() - 0.5) * 1.4, dx: (R() - 0.5) * 0.8, dy: (R() - 0.5) * 0.8,
       tape: kind === 'photo' && R() < 0.15,
       sun: kind === 'photo' && R() < 0.14,
       center: [0.3 + R() * 0.4, 0.3 + R() * 0.4],

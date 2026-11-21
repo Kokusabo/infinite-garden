@@ -112,13 +112,17 @@ void main() {
 const OPTICS = `
 precision highp float;
 uniform sampler2D tScene;
-uniform float uTime, uAstig, uAngle, uGhost, uExpose, uBlind, uClosed, uSunAmt, uStreak, uLeak, uTape, uDim, uVel, uHaze, uFlare, uChroma, uZoomBlur, uSpec, uSweepAng;
+uniform float uTime, uAstig, uAngle, uGhost, uExpose, uBlind, uClosed, uSunAmt, uStreak, uLeak, uTape, uDim, uVel, uHaze, uFlare, uChroma, uZoomBlur, uSpec, uSweepAng, uInvert, uMosaic, uWave, uRays, uShafts;
 uniform vec2 uSun, uSun2, uGhostDir, uAspect, uMotion, uMotionC, uSweep, uShake;
 varying vec2 vUv;
 ${COMMON}
 vec3 S(vec2 uv) { uv = 1.0 - abs(1.0 - mod(uv, 2.0)); return texture2D(tScene, clamp(uv, 0.001, 0.999)).rgb; }
 void main() {
   vec2 uv = vUv + uShake;
+  // the picture going liquid for a moment
+  if (uWave > 0.001) { uv.x += sin(uv.y * 38.0 + uTime * 11.0) * 0.014 * uWave; uv.y += sin(uv.x * 23.0 + uTime * 8.0) * 0.008 * uWave; }
+  // or falling apart into big squares
+  if (uMosaic > 0.001) { vec2 g = vec2(uAspect.x, 1.0) * mix(240.0, 30.0, uMosaic); uv = (floor(uv * g) + 0.5) / g; }
   if (uTape > 0.001) {
     float line = floor(uv.y * 240.0), tick = floor(uTime * 30.0);
     uv.x += (h1(vec2(line, tick)) - 0.5) * 0.004 * uTape + sin(uv.y * 30.0 + uTime * 2.0) * 0.0015 * uTape;
@@ -177,12 +181,38 @@ void main() {
   vec2 wq = d + (vec2(vnoise(uv * 2.6 + uTime * 0.21), vnoise(uv * 2.6 - uTime * 0.17 + 5.0)) - 0.5) * 0.18;
   float th = uTime * 0.07 + sin(uTime * 0.19) * 0.8, cs = cos(th), sn = sin(th), sq = 1.0 + 0.5 * (0.5 + 0.5 * sin(uTime * 0.23));
   vec2 e2 = vec2(cs * wq.x + sn * wq.y, -sn * wq.x + cs * wq.y) * vec2(1.0 / sq, sq);
-  float re = length(e2), ang = atan(e2.y, e2.x) + uTime * 0.04;
-  float rays = pow(vnoise(vec2(ang * 4.0 + uTime * 0.09, uTime * 0.05)) * 0.65 + vnoise(vec2(ang * 9.0 - uTime * 0.06, 3.0)) * 0.35, 2.2);
-  float breathe = 0.84 + 0.16 * sin(uTime * 0.61) + 0.14 * (vnoise(vec2(uTime * 0.4, 9.0)) - 0.5);
-  vec3 tint = mix(vec3(1.0, 0.98, 0.86), vec3(0.88, 1.0, 0.82), 0.5 + 0.5 * sin(uTime * 0.11));
+  float re = length(e2);
+  float breathe = 0.8 + 0.2 * sin(uTime * 0.61) + 0.16 * (vnoise(vec2(uTime * 0.4, 9.0)) - 0.5);
+  vec3 tint = mix(vec3(1.0, 0.97, 0.84), vec3(0.86, 1.0, 0.8), 0.5 + 0.5 * sin(uTime * 0.11));
   float r2 = length((uv - uSun2) * uAspect);
-  col += tint * (exp(-re * 3.3) * 0.62 + exp(-re * 1.1) * 0.32 + rays * exp(-re * 1.8) * 0.42 + exp(-r2 * 2.4) * 0.24) * uSunAmt * breathe;
+  float glow = exp(-re * re * 7.0) * 0.5 + exp(-re * 2.0) * 0.26 + exp(-r2 * r2 * 5.0) * 0.22;
+  float discs = 0.0; vec3 dcol = vec3(0.0);
+  for (int i = 0; i < 6; i++) {
+    float fi = float(i);
+    vec2 o = vec2(sin(uTime * (0.19 + fi * 0.06) + fi * 2.1), cos(uTime * (0.15 + fi * 0.05) + fi * 1.3)) * (0.08 + 0.05 * fi);
+    float rad = 0.045 + 0.025 * fi * 0.5 + 0.02 * sin(uTime * 0.5 + fi), rr = length(d - o);
+    float k = smoothstep(rad, rad * 0.5, rr) * (0.09 + 0.06 * (0.5 + 0.5 * sin(uTime * 0.8 + fi * 2.0)));
+    dcol += mix(vec3(1.0, 0.95, 0.78), vec3(0.78, 1.0, 0.86), fract(fi * 0.37)) * k;
+  }
+  col += (tint * glow + dcol) * (0.4 + uSunAmt * 0.7) * breathe;
+  // rays out of the light: their number, width, length and direction never stay the same
+  if (uRays > 0.001) {
+    vec2 cd = normalize(d + 1e-5);
+    float f1 = 2.0 + 1.6 * (0.5 + 0.5 * sin(uTime * 0.13)), f2 = 5.0 + 3.0 * (0.5 + 0.5 * sin(uTime * 0.09 + 2.0));
+    float n1 = vnoise(cd * f1 + vec2(uTime * 0.22, -uTime * 0.17)), n2 = vnoise(cd * f2 + vec2(-uTime * 0.31, uTime * 0.26) + 7.0);
+    float rays = pow(clamp(n1 * 0.65 + n2 * 0.35, 0.0, 1.0), 2.2 + 1.8 * (0.5 + 0.5 * sin(uTime * 0.21)));
+    float len = 0.25 + 0.3 * (0.5 + 0.5 * sin(uTime * 0.17)) + 0.35 * vnoise(cd * 2.0 + uTime * 0.4);
+    col += tint * rays * exp(-r / len) * smoothstep(0.0, 0.05, r) * uRays * 0.9 * breathe;
+  }
+  // shafts of light falling through leaves, drifting, widening and narrowing
+  if (uShafts > 0.001) {
+    float sa = -0.35 + 0.25 * sin(uTime * 0.04);
+    vec2 fall = vec2(sin(sa), -cos(sa));
+    float across = dot((uv - vec2(0.5, 1.0)) * uAspect, vec2(-fall.y, fall.x)), down = dot((uv - vec2(0.5, 1.0)) * uAspect, fall);
+    float w = 3.0 + 2.5 * (0.5 + 0.5 * sin(uTime * 0.07));
+    float sh = pow(vnoise(vec2(across * w + uTime * 0.12, uTime * 0.08)), 3.0) + 0.6 * pow(vnoise(vec2(across * w * 2.3 - uTime * 0.2, 4.0 + uTime * 0.1)), 4.0);
+    col += vec3(1.0, 0.98, 0.84) * sh * exp(-down * 0.9) * uShafts * 0.55;
+  }
   // light passing over everything, as if something moved in front of the sun
   if (uSweep.y > 0.001) {
     vec2 sd = vec2(cos(uSweepAng), sin(uSweepAng));
@@ -217,6 +247,7 @@ void main() {
   col = mix(col, col * vec3(0.16, 0.3, 0.2) + vec3(0.01, 0.035, 0.02), uDim);
   vec3 after = vec3(0.012, 0.045, 0.03) + (b * 0.35 + st * 0.25) * vec3(0.55, 0.85, 0.4) + vec3(0.25, 0.4, 0.15) * exp(-r * 3.0) * uSunAmt;
   col = mix(col, after, uClosed);
+  col = mix(col, vec3(1.0) - col * vec3(0.85, 0.7, 0.95), uInvert);   // for an instant, the negative
   col = mix(col, vec3(0.985, 1.0, 0.95), uBlind);
   col += (h1(gl_FragCoord.xy + floor(uTime * 24.0)) - 0.5) * 0.025;
   gl_FragColor = vec4(col, 1.0);
@@ -235,7 +266,7 @@ export function createEye(renderer) {
   const O = {
     tScene: { value: rt.texture }, uTime: { value: 0 }, uAstig: { value: 1 }, uAngle: { value: 0.3 }, uGhost: { value: 0.5 }, uExpose: { value: 1.6 },
     uBlind: { value: 0 }, uClosed: { value: 0 }, uSunAmt: { value: 0.6 }, uStreak: { value: 1 }, uLeak: { value: 0.5 }, uTape: { value: 0 }, uDim: { value: 0 }, uVel: { value: 0 },
-    uHaze: { value: 1 }, uFlare: { value: 0 }, uChroma: { value: 0 }, uZoomBlur: { value: 0 }, uSpec: { value: 0 }, uSweepAng: { value: 0 },
+    uHaze: { value: 1 }, uFlare: { value: 0 }, uChroma: { value: 0 }, uZoomBlur: { value: 0 }, uSpec: { value: 0 }, uSweepAng: { value: 0 }, uInvert: { value: 0 }, uMosaic: { value: 0 }, uWave: { value: 0 }, uRays: { value: 0.6 }, uShafts: { value: 0 },
     uMotion: { value: new THREE.Vector2(0, 0) }, uMotionC: { value: new THREE.Vector2(0.5, 0.5) },
     uSun2: { value: new THREE.Vector2(0.7, 0.75) }, uSweep: { value: new THREE.Vector2(0, 0) }, uShake: { value: new THREE.Vector2(0, 0) },
     uSun: { value: new THREE.Vector2(0.7, 0.75) }, uGhostDir: { value: new THREE.Vector2(0.006, 0.003) }, uAspect: { value: new THREE.Vector2(1, 1) }
