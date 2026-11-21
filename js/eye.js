@@ -109,8 +109,8 @@ void main() {
 const OPTICS = `
 precision highp float;
 uniform sampler2D tScene;
-uniform float uTime, uAstig, uAngle, uGhost, uExpose, uBlind, uClosed, uSunAmt, uStreak, uLeak, uTape, uDim, uVel, uHaze, uFlare, uChroma;
-uniform vec2 uSun, uGhostDir, uAspect;
+uniform float uTime, uAstig, uAngle, uGhost, uExpose, uBlind, uClosed, uSunAmt, uStreak, uLeak, uTape, uDim, uVel, uHaze, uFlare, uChroma, uZoomBlur, uSpec;
+uniform vec2 uSun, uGhostDir, uAspect, uMotion, uMotionC;
 varying vec2 vUv;
 ${COMMON}
 vec3 S(vec2 uv) { return texture2D(tScene, clamp(uv, 0.001, 0.999)).rgb; }
@@ -124,7 +124,7 @@ void main() {
   float va = clamp(abs(uVel) * 0.5, 0.0, 1.0);
   vec2 d0 = normalize(mix(vec2(cos(uAngle), sin(uAngle)), vec2(0.0, 1.0), va));
   vec2 dir = d0 / uAspect, per = vec2(-d0.y, d0.x) / uAspect;
-  float L = uAstig * 0.022 + va * 0.07;
+  float L = uAstig * 0.022;
   vec3 col = vec3(0.0);
   if (L < 0.0012) col = S(uv);          // in focus: the picture as it is
   else {
@@ -133,6 +133,22 @@ void main() {
       col += S(uv + dir * cos(a) * r * L + per * sin(a) * r * L * 0.22);
     }
     col /= 16.0;
+  }
+  // moving: the picture is smeared along the way it goes and pulled towards you, like a slow shutter.
+  // the light parts leave longer trails, and the colours separate a little along the smear
+  float M = length(uMotion) + uZoomBlur;
+  if (M > 0.002) {
+    vec3 acc = vec3(0.0), ws = vec3(0.0);
+    float j = h1(gl_FragCoord.xy + fract(uTime * 7.0) * 91.0) - 0.5;
+    vec2 fromC = uv - uMotionC;
+    for (int i = 0; i < 24; i++) {
+      float t = (float(i) + 0.5 + j) / 24.0 - 0.5, u = t + 0.5;
+      vec3 c = S(uv + uMotion * t - fromC * uZoomBlur * u);
+      float lum = dot(c, vec3(0.3, 0.55, 0.15));
+      vec3 w = (vec3(1.0) + uSpec * vec3(u - 0.5, 0.0, 0.5 - u) * 1.8) * (1.0 + max(lum - 0.62, 0.0) * 6.0) * (1.15 - abs(t));
+      acc += c * w; ws += w;
+    }
+    col = mix(col, acc / ws, smoothstep(0.002, 0.02, M));
   }
   // colours coming apart for a moment
   if (uChroma > 0.001) { col.r = S(uv + vec2(uChroma * 0.012, uChroma * 0.003)).r; col.b = S(uv - vec2(uChroma * 0.012, uChroma * 0.003)).b; }
@@ -202,7 +218,8 @@ export function createEye(renderer) {
   const O = {
     tScene: { value: rt.texture }, uTime: { value: 0 }, uAstig: { value: 1 }, uAngle: { value: 0.3 }, uGhost: { value: 0.5 }, uExpose: { value: 1.6 },
     uBlind: { value: 0 }, uClosed: { value: 0 }, uSunAmt: { value: 0.6 }, uStreak: { value: 1 }, uLeak: { value: 0.5 }, uTape: { value: 0 }, uDim: { value: 0 }, uVel: { value: 0 },
-    uHaze: { value: 1 }, uFlare: { value: 0 }, uChroma: { value: 0 },
+    uHaze: { value: 1 }, uFlare: { value: 0 }, uChroma: { value: 0 }, uZoomBlur: { value: 0 }, uSpec: { value: 0 },
+    uMotion: { value: new THREE.Vector2(0, 0) }, uMotionC: { value: new THREE.Vector2(0.5, 0.5) },
     uSun: { value: new THREE.Vector2(0.7, 0.75) }, uGhostDir: { value: new THREE.Vector2(0.006, 0.003) }, uAspect: { value: new THREE.Vector2(1, 1) }
   };
   const quad = function (frag, U) {

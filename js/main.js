@@ -4,7 +4,7 @@
  * pages from a book about all this. Touch, and a flower made of letters grows there.
  * Hold, and your eyes close. Type, and what you type grows. It does not end. */
 import * as THREE from '../vendor/three.module.min.js';
-import { createEye, cover, TRANSITIONS } from './eye.js?v=3';
+import { createEye, cover, TRANSITIONS } from './eye.js?v=4';
 import { createWorld, WORLD_NAMES } from './worlds.js?v=5';
 import { makeFlower, bloom, createLetters } from './ascii.js?v=5';
 import { createScenes } from './scenes.js?v=3';
@@ -236,12 +236,12 @@ function run() {
   const EVENT_NAMES = Object.keys(EVENTS);
   let evName = '', evT0 = -1, evHold = -1, nextEvent = rand(2.5, 5), punch = 0;
   function happen(name, t) { evName = name; evT0 = t; evHold = -1; }
-  let blindT0 = -1, blindPlanted = false, blindFor = -1, lastHalf = '', lastNear = -1, holdAt = -1;
+  let blindT0 = -1, blindPlanted = false, blindFor = -1, lastHalf = '', lastNear = -1, holdAt = -1, holdVel = 0;
 
   if (/[?&]debug\b/.test(location.search)) {
     window.__garden = {
       begin: begin, event: function (n, hold) { happen(n, clock()); evHold = hold === undefined ? -1 : hold; }, go: function (i) { target = i; pos = i; vel = 0; }, to: function (i) { target = i; }, pos: function () { return pos; },
-      scene: function (i) { return get(i); }, freeze: function (k) { holdAt = k; },
+      scene: function (i) { return get(i); }, freeze: function (k, v) { holdAt = k; holdVel = v || 0; },
       find: function (kind, from) { for (let i = from || 0; i < 400; i++) if (get(i).kind === kind) return i; return -1; },
       findTrans: function (tr, from) { for (let i = from || 1; i < 400; i++) if (get(i).trans === tr && get(i).kind === 'photo' && get(i + 1).kind === 'photo') return i; return -1; },
       plant: plant, blink: function () { nextBlink = 0; }
@@ -264,7 +264,7 @@ function run() {
       target += (goal - target) * (1 - Math.exp(-dt * 9));
       if (Math.abs(goal - target) < 0.002) { target = goal; gesture = false; }
     }
-    if (holdAt >= 0) { target = holdAt; pos = holdAt; vel = 0; }
+    if (holdAt >= 0) { target = holdAt; pos = holdAt; vel = holdVel; }
     const i0 = Math.floor(pos);
     if (!(source(get(i0 + 1)).ready && source(get(i0)).ready) && target > i0 + 0.15) target = i0 + 0.15;   // wait for it to load
     if (holdAt < 0) { const k = 110, c = 2 * Math.sqrt(k); vel += ((target - pos) * k - vel * c) * dt; pos += vel * dt; }
@@ -324,6 +324,15 @@ function run() {
     O.uHaze.value = Math.max(look('haze'), tri * 0.6);
     C.uFlow.value = look('flow');
     O.uVel.value = reduced ? 0 : Math.max(-2.5, Math.min(2.5, vel * 0.32));
+    // motion blur: the faster you go, the longer the smear; every change of picture also pulls a little towards you
+    {
+      const sp = reduced ? 0 : Math.min(1, Math.abs(vel) / 4.5), kick = reduced ? 0 : tri;
+      const len = Math.min(0.26, sp * 0.17 + kick * 0.06 + punch * 0.05), tilt = (A.seed - 0.5) * 0.5, sgn = vel < 0 ? -1 : 1;
+      O.uMotion.value.set(Math.sin(tilt) * len * sgn / (window.innerWidth / window.innerHeight), Math.cos(tilt) * len * sgn);
+      O.uZoomBlur.value = Math.min(0.22, kick * 0.1 + sp * 0.06 + punch * 0.12);
+      O.uMotionC.value.set(A.center ? lerp(A.center[0], B.center ? B.center[0] : 0.5, p) : 0.5, A.center ? lerp(A.center[1], B.center ? B.center[1] : 0.5, p) : 0.5);
+      O.uSpec.value = Math.min(0.7, sp * 0.6 + kick * 0.25);
+    }
     if (!mouse) sunT.set(0.5 + Math.sin(t * 0.031) * 0.38, 0.62 + Math.sin(t * 0.047) * 0.3);
     sun.lerp(sunT, 1 - Math.exp(-dt * (mouse ? 1.5 : 0.5)));
     O.uSun.value.copy(sun);
