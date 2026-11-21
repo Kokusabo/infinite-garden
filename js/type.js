@@ -1,7 +1,7 @@
 /* type.js - the words. Each scene's words are built from single letters, so they can
  * gather out of a blur as you arrive and come apart, letter by letter, as you leave.
  * Nothing here runs on a clock: it all follows the scroll, forwards and backwards. */
-import { banner } from './ascii.js?v=4';
+import { banner } from './ascii.js?v=5';
 
 const GLYPHS = '.:;-=+*#%@/\\|<>~';
 function clamp(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }

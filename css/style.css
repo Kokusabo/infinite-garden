@@ -32,7 +32,7 @@ body { font: 300 1rem/1.4 var(--f-mono); color: #fff; -webkit-font-smoothing: an
   position: absolute; margin: 0;
   font-family: var(--f-mono); font-weight: 400; line-height: 1; letter-spacing: 0;
   white-space: pre; color: #fff;
-  text-shadow: 0 0 1px rgba(255, 255, 255, 0.95), 0 0 3px rgba(20, 52, 26, 0.75), 0 0 9px rgba(20, 52, 26, 0.45), 0 0 22px rgba(20, 52, 26, 0.25);
+  text-shadow: 0 0 1px rgba(255, 255, 255, 0.9), 0 0 4px rgba(20, 52, 26, 0.65), 0 0 14px rgba(20, 52, 26, 0.3);
 }
 /* what the sun leaves on the eye */
 .bloom.after { color: #2c5d36; text-shadow: 0 0 1px rgba(44, 93, 54, 0.6), 0 0 10px rgba(255, 255, 250, 0.9); transition: color 4s ease; }
@@ -66,7 +66,7 @@ body { font: 300 1rem/1.4 var(--f-mono); color: #fff; -webkit-font-smoothing: an
 .pg-line { margin: 0; font: italic 400 clamp(1.6rem, 3.6vw, 3rem)/1.05 var(--f-serif); color: var(--ink); max-width: 22ch; }
 .p-word .page-in { grid-template-rows: auto 1fr auto auto; justify-items: start; align-items: end; }
 .pg-word { margin: 0; align-self: center; justify-self: center; font: italic 400 clamp(6rem, 27vw, 24rem)/0.8 var(--f-serif); letter-spacing: -0.03em; color: var(--ink); }
-.pg-flower { position: absolute; right: 7vw; bottom: 8vh; margin: 0; font: 400 clamp(9px, 1vw, 13px)/1 var(--f-mono); color: var(--soft); }
+.pg-flower { position: absolute; right: 7vw; bottom: 8vh; margin: 0; font: 400 clamp(6px, 0.72vw, 10px)/1 var(--f-mono); color: var(--soft); }
 .p-contact .page-in { grid-template-rows: auto 1fr auto; gap: 4vh; justify-items: start; }
 .pg-sheet { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(10px, 2.4vw, 32px); width: 100%; align-items: end; }
 .pg-fig { margin: 0; }
@@ -110,7 +110,7 @@ body { font: 300 1rem/1.4 var(--f-mono); color: #fff; -webkit-font-smoothing: an
 .lids.off { opacity: 0; pointer-events: none; }
 .lids[hidden] { display: none; }
 .lids-in { display: grid; justify-items: center; gap: 26px; }
-.first { margin: 0; font: 400 15px/1 var(--f-mono); color: rgba(47, 92, 56, 0.6); }
+.first { margin: 0; font: 400 9px/1 var(--f-mono); color: rgba(47, 92, 56, 0.6); }
 .open { padding: 6px 4px; border: 0; background: none; font: 300 0.95rem var(--f-mono); letter-spacing: 0.3em; color: var(--leaf); cursor: pointer; animation: breathe 3.2s ease-in-out infinite; }
 .open:hover, .open:focus-visible { letter-spacing: 0.34em; }
 @keyframes breathe { 50% { opacity: 0.45; } }

@@ -14,88 +14,231 @@ export function rng(seed) {
   return f;
 }
 
-/* ---- flowers drawn by hand, letter by letter, and put together differently every time ---- */
-// heads: every row is centred on the stem, so they can be written plainly
-const HEADS = {
-  daisy: ['__   __', '_(  \\_/  )_', '(__  (@)  __)', '(_ /   \\ _)', '(_/ \\_)'],
-  tulip: ['. . .', '/\\/ \\/\\', '|   |   |', '\\  |  /', "'-+-'"],
-  rose: [".-'''-.", '/ .---. \\', '| ( (@) ) |', "\\ '---' /", "'-._.-'"],
-  poppy: ['_.---._', ".'  . .  '.", '(   (_*_)   )', "'.  ' '  .'", "'-...-'"],
-  dandelion: [".  '  .", "'  \\ | /  '", '. -- (*) -- .', "'  / | \\  '", "'  .  '"],
-  cosmos: ['_   _', '( \\ / )', '_  \\ V /  _', "( '-(o)-' )", "'-' | '-'"],
-  sunflower: ['\\ | /', "'. \\ | / .'", '-- (#@#) --', ".' / | \\ '.", '/ | \\'],
-  bell: ['.-.', '/   \\', '(_____)', "' ' '"],
-  bud: ['.', '(@)', '\\|/']
-};
-const HEAD_NAMES = Object.keys(HEADS);
-const BIG = ['daisy', 'tulip', 'rose', 'poppy', 'dandelion', 'cosmos', 'sunflower'];
-// leaves, written to sit just left (or right) of the stem
-const LEAF_L = [['.-.  ', "\\  '-", " '-._"], ['  _  ', '/ `-.', "'-._ "], ['     ', ',_   ', "'-._ "]];
-const LEAF_R = [['  .-.', "-'  /", "_.-' "], ['  _  ', ".-' \\", " _.-'"], ['     ', '   _,', " _.-'"]];
-const CENTERS = ['@', '*', 'o', '#'];
+/* ---- a flower is first painted, softly, out of sight; then read back as letters ---- */
+// the painting is done in white on nothing, a few pixels for every character;
+// each character's patch of it decides the letter: how much is painted chooses from a ramp,
+// and where a thin line runs through, the letter is the one that runs the same way.
+const SX = 6, SY = 10;
+const RAMPF = ' .:-=+*%#@';
+const KINDS = ['daisy', 'cosmos', 'tulip', 'rose', 'poppy', 'lily', 'dandelion', 'bells', 'fern', 'daisy', 'dandelion', 'cosmos'];
 
-function grid(w, h) { const g = []; for (let i = 0; i < h; i++) g.push(new Array(w).fill(null)); return g; }
-function put(g, row, col, ch, ord) {
-  if (row < 0 || row >= g.length || col < 0 || col >= g[0].length || ch === ' ') return;
-  g[row][col] = { ch: ch, o: ord };
+function stemPath(x, bx, by, hx, hy, bend, w) {
+  x.save();
+  x.lineCap = 'round';
+  const g = x.createLinearGradient(0, by, 0, hy);
+  g.addColorStop(0, 'rgba(255,255,255,0.55)'); g.addColorStop(1, 'rgba(255,255,255,0.85)');
+  x.strokeStyle = g; x.lineWidth = w;
+  x.beginPath(); x.moveTo(bx, by); x.quadraticCurveTo(bx + bend, (by + hy) / 2, hx, hy); x.stroke();
+  x.restore();
+}
+function stemPoint(bx, by, hx, hy, bend, t) {
+  const cx = bx + bend, cy = (by + hy) / 2, u = 1 - t;
+  return { x: u * u * bx + 2 * u * t * cx + t * t * hx, y: u * u * by + 2 * u * t * cy + t * t * hy };
+}
+// a leaf: two curves meeting at a point, a lighter edge and a vein down the middle
+function leaf(x, px, py, len, wid, ang, a) {
+  x.save(); x.translate(px, py); x.rotate(ang);
+  const g = x.createLinearGradient(0, 0, len, 0);
+  g.addColorStop(0, 'rgba(255,255,255,' + (a * 0.55) + ')'); g.addColorStop(0.6, 'rgba(255,255,255,' + a + ')'); g.addColorStop(1, 'rgba(255,255,255,' + (a * 0.7) + ')');
+  x.fillStyle = g;
+  x.beginPath(); x.moveTo(0, 0); x.bezierCurveTo(len * 0.3, -wid, len * 0.75, -wid * 0.8, len, 0); x.bezierCurveTo(len * 0.75, wid * 0.8, len * 0.3, wid, 0, 0); x.fill();
+  x.globalCompositeOperation = 'destination-out'; x.strokeStyle = 'rgba(0,0,0,0.55)'; x.lineWidth = Math.max(1, wid * 0.12);
+  x.beginPath(); x.moveTo(len * 0.05, 0); x.quadraticCurveTo(len * 0.5, -wid * 0.08, len * 0.92, 0); x.stroke();
+  x.restore();
+}
+// a petal from the centre outwards, brighter at its tip
+function petal(x, cx, cy, ang, len, wid, a0, a1, notch) {
+  x.save(); x.translate(cx, cy); x.rotate(ang);
+  const g = x.createLinearGradient(0, 0, len, 0);
+  g.addColorStop(0, 'rgba(255,255,255,' + a0 + ')'); g.addColorStop(1, 'rgba(255,255,255,' + a1 + ')');
+  x.fillStyle = g;
+  x.beginPath(); x.moveTo(0, 0);
+  x.bezierCurveTo(len * 0.3, -wid, len * 0.85, -wid * 1.05, len, -wid * 0.25);
+  if (notch) { x.lineTo(len * 0.9, 0); }
+  x.lineTo(len, wid * 0.25);
+  x.bezierCurveTo(len * 0.85, wid * 1.05, len * 0.3, wid, 0, 0); x.fill();
+  x.globalCompositeOperation = 'destination-out'; x.strokeStyle = 'rgba(0,0,0,0.35)'; x.lineWidth = Math.max(1, wid * 0.1);
+  x.beginPath(); x.moveTo(len * 0.15, 0); x.lineTo(len * 0.85, 0); x.stroke();
+  x.restore();
+}
+function dots(x, cx, cy, r, n, size, a, R) {
+  x.fillStyle = 'rgba(255,255,255,' + a + ')';
+  for (let i = 0; i < n; i++) { const t = Math.sqrt(R()) * r, q = R() * TAU; x.beginPath(); x.arc(cx + Math.cos(q) * t, cy + Math.sin(q) * t, size, 0, TAU); x.fill(); }
 }
 
-// one flower into the grid: its stem standing on (baseCol, last row), its height in rows
-function oneFlower(g, R, baseCol, stemLen, name, petal) {
-  const head = HEADS[name], rows = g.length;
-  // the stem, from the ground up, leaning a little now and then
-  let x = baseCol, lean = R() < 0.5 ? -1 : 1, sinceTurn = 0;
-  const xs = [];
-  for (let i = 0; i < stemLen; i++) {
-    const row = rows - 1 - i;
-    let ch = '|';
-    if (sinceTurn > 2 && R() < 0.22) { x += lean; ch = lean > 0 ? '/' : '\\'; sinceTurn = 0; if (R() < 0.4) lean = -lean; } else sinceTurn++;
-    xs.push(x);
-    put(g, row, x, ch, (i / stemLen) * 0.42);
-  }
-  // leaves on the stem, never too high
-  const nLeaves = stemLen > 5 ? 1 + Math.floor(R() * 2) : 0;
-  let side = R() < 0.5 ? -1 : 1;
-  for (let k = 0; k < nLeaves; k++) {
-    const i = 1 + Math.floor(R() * Math.max(1, stemLen * 0.55 - 2)) + k * 2, row = rows - 1 - i - 2, sx = xs[Math.min(i, xs.length - 1)];
-    const L = side < 0 ? LEAF_L[Math.floor(R() * LEAF_L.length)] : LEAF_R[Math.floor(R() * LEAF_R.length)];
-    for (let r = 0; r < 3; r++) for (let c = 0; c < 5; c++) put(g, row + r, side < 0 ? sx - 5 + c : sx + 1 + c, L[r][c], (i / stemLen) * 0.42 + 0.04);
-    side = -side;
-  }
-  // the head, centred on the top of the stem
-  const top = rows - 1 - stemLen, hx = xs[xs.length - 1], hh = head.length, mid = (hh - 1) / 2;
-  const centre = CENTERS[Math.floor(R() * CENTERS.length)];
-  for (let r = 0; r < hh; r++) {
-    const line = head[r], off = hx - Math.floor(line.length / 2), row = top - hh + 1 + r;
-    for (let c = 0; c < line.length; c++) {
-      let ch = line[c];
-      if (ch === '@' || ch === '*' || ch === 'o' || ch === '#') ch = petal || (R() < 0.5 ? ch : centre);
-      else if (petal && (ch === '.' || ch === "'") && R() < 0.5) ch = petal;
-      const d = Math.hypot((c - line.length / 2) * 0.55, r - mid) / Math.max(2, hh * 0.8);
-      put(g, row, off + c, ch, 0.45 + Math.min(1, d) * 0.5);
+function paintHead(x, kind, hx, hy, r, R) {
+  if (kind === 'daisy' || kind === 'cosmos') {
+    const cos = kind === 'cosmos', n = cos ? 8 : 16 + Math.floor(R() * 8), rot = R() * TAU;
+    if (!cos) for (let i = 0; i < n; i++) petal(x, hx, hy, rot + (i + 0.5) / n * TAU, r * 0.88, r * 0.11, 0.25, 0.6, false);
+    for (let i = 0; i < n; i++) petal(x, hx, hy, rot + i / n * TAU + (R() - 0.5) * 0.08, r * (0.95 + R() * 0.1), r * (cos ? 0.3 : 0.14), cos ? 0.35 : 0.45, 0.95, cos);
+    const cr = r * (cos ? 0.2 : 0.26);
+    const g = x.createRadialGradient(hx, hy, 0, hx, hy, cr);
+    g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(255,255,255,0.75)');
+    x.globalCompositeOperation = 'destination-out'; x.fillStyle = 'rgba(0,0,0,1)'; x.beginPath(); x.arc(hx, hy, cr * 1.15, 0, TAU); x.fill();
+    x.globalCompositeOperation = 'source-over'; x.fillStyle = g; x.beginPath(); x.arc(hx, hy, cr, 0, TAU); x.fill();
+    x.globalCompositeOperation = 'destination-out'; dots(x, hx, hy, cr * 0.9, 26, cr * 0.09, 0.8, R); x.globalCompositeOperation = 'source-over';
+  } else if (kind === 'tulip') {
+    const w = r * 0.78, h = r * 1.25, by = hy + h * 0.45;
+    const cup = function (ox, sk, a) {
+      const g = x.createLinearGradient(0, by, 0, by - h);
+      g.addColorStop(0, 'rgba(255,255,255,' + (a * 0.55) + ')'); g.addColorStop(1, 'rgba(255,255,255,' + a + ')');
+      x.fillStyle = g; x.beginPath();
+      x.moveTo(hx + ox, by);
+      x.bezierCurveTo(hx + ox - w * 0.62, by - h * 0.15, hx + ox - w * 0.55 + sk, by - h * 0.85, hx + ox - w * 0.12 + sk, by - h);
+      x.lineTo(hx + ox + sk * 0.3, by - h * 0.82);
+      x.lineTo(hx + ox + w * 0.12 + sk, by - h);
+      x.bezierCurveTo(hx + ox + w * 0.55 + sk, by - h * 0.85, hx + ox + w * 0.62, by - h * 0.15, hx + ox, by);
+      x.fill();
+    };
+    cup(-w * 0.28, -w * 0.08, 0.6); cup(w * 0.28, w * 0.08, 0.6); cup(0, 0, 0.95);
+    x.globalCompositeOperation = 'destination-out'; x.strokeStyle = 'rgba(0,0,0,0.45)'; x.lineWidth = Math.max(1, w * 0.04);
+    [-0.2, 0.2].forEach(function (k) { x.beginPath(); x.moveTo(hx + w * k * 0.4, by - h * 0.05); x.quadraticCurveTo(hx + w * k, by - h * 0.5, hx + w * k * 1.3, by - h * 0.95); x.stroke(); });
+    x.globalCompositeOperation = 'source-over';
+  } else if (kind === 'rose') {
+    for (let i = 0; i < 5; i++) { const a = i / 5 * TAU + R() * 0.3; x.fillStyle = 'rgba(255,255,255,0.5)'; x.beginPath(); x.arc(hx + Math.cos(a) * r * 0.45, hy + Math.sin(a) * r * 0.4, r * 0.55, 0, TAU); x.fill(); }
+    x.globalCompositeOperation = 'destination-out'; x.fillStyle = 'rgba(0,0,0,0.25)'; x.beginPath(); x.arc(hx, hy, r * 0.62, 0, TAU); x.fill();
+    x.globalCompositeOperation = 'source-over';
+    x.lineCap = 'round';
+    for (let k = 0; k < 7; k++) {
+      const rr = r * (0.62 - k * 0.08), a0 = R() * TAU;
+      x.strokeStyle = 'rgba(255,255,255,' + (0.5 + k * 0.07) + ')'; x.lineWidth = Math.max(1.5, r * 0.07);
+      x.beginPath(); x.arc(hx + (R() - 0.5) * r * 0.06, hy + (R() - 0.5) * r * 0.06, Math.max(1, rr), a0, a0 + TAU * (0.55 + R() * 0.25)); x.stroke();
     }
+  } else if (kind === 'poppy') {
+    for (let i = 0; i < 4; i++) {
+      const a = i / 4 * TAU + R() * 0.4 + 0.3, cx = hx + Math.cos(a) * r * 0.42, cy = hy + Math.sin(a) * r * 0.36;
+      x.fillStyle = 'rgba(255,255,255,' + (0.45 + i * 0.1) + ')'; x.beginPath();
+      for (let k = 0; k <= 40; k++) { const q = k / 40 * TAU, rr = r * 0.6 * (1 + 0.06 * Math.sin(q * 9 + i)); const px = cx + Math.cos(q) * rr, py = cy + Math.sin(q) * rr * 0.85; k ? x.lineTo(px, py) : x.moveTo(px, py); }
+      x.fill();
+    }
+    x.globalCompositeOperation = 'destination-out'; x.fillStyle = 'rgba(0,0,0,1)'; x.beginPath(); x.arc(hx, hy, r * 0.22, 0, TAU); x.fill();
+    x.globalCompositeOperation = 'source-over';
+    for (let i = 0; i < 16; i++) { const a = i / 16 * TAU; x.strokeStyle = 'rgba(255,255,255,0.8)'; x.lineWidth = 1.2; x.beginPath(); x.moveTo(hx, hy); x.lineTo(hx + Math.cos(a) * r * 0.3, hy + Math.sin(a) * r * 0.3); x.stroke(); x.fillStyle = 'rgba(255,255,255,1)'; x.beginPath(); x.arc(hx + Math.cos(a) * r * 0.32, hy + Math.sin(a) * r * 0.32, r * 0.035, 0, TAU); x.fill(); }
+    x.fillStyle = 'rgba(255,255,255,0.95)'; x.beginPath(); x.arc(hx, hy, r * 0.1, 0, TAU); x.fill();
+  } else if (kind === 'lily') {
+    const rot = -Math.PI / 2 + (R() - 0.5) * 0.3;
+    for (let i = 0; i < 6; i++) {
+      const a = rot + i / 6 * TAU;
+      petal(x, hx, hy, a, r * 1.05, r * 0.2, 0.4, 0.95, false);
+      x.fillStyle = 'rgba(0,0,0,0.6)'; x.globalCompositeOperation = 'destination-out';
+      for (let k = 0; k < 5; k++) { const t = 0.25 + R() * 0.4; x.beginPath(); x.arc(hx + Math.cos(a) * r * t + (R() - 0.5) * r * 0.1, hy + Math.sin(a) * r * t + (R() - 0.5) * r * 0.1, r * 0.025, 0, TAU); x.fill(); }
+      x.globalCompositeOperation = 'source-over';
+    }
+    for (let i = 0; i < 6; i++) {
+      const a = rot + (i + 0.5) / 6 * TAU, ex = hx + Math.cos(a) * r * 0.6, ey = hy + Math.sin(a) * r * 0.6 - r * 0.2;
+      x.strokeStyle = 'rgba(255,255,255,0.85)'; x.lineWidth = 1.2; x.beginPath(); x.moveTo(hx, hy); x.quadraticCurveTo(hx + Math.cos(a) * r * 0.3, hy - r * 0.3, ex, ey); x.stroke();
+      x.fillStyle = '#fff'; x.beginPath(); x.ellipse(ex, ey, r * 0.06, r * 0.03, a, 0, TAU); x.fill();
+    }
+  } else if (kind === 'dandelion') {
+    // a clock of seeds: fine rays from a small heart, each with a little parachute
+    const n = 150;
+    for (let i = 0; i < n; i++) {
+      const a = R() * TAU, z = R() * 2 - 1, rr = r * Math.sqrt(1 - z * z * 0.6) * (0.85 + R() * 0.15);
+      const ex = hx + Math.cos(a) * rr, ey = hy + Math.sin(a) * rr;
+      x.strokeStyle = 'rgba(255,255,255,' + (0.25 + R() * 0.3) + ')'; x.lineWidth = 0.8;
+      x.beginPath(); x.moveTo(hx, hy); x.lineTo(ex, ey); x.stroke();
+      x.fillStyle = 'rgba(255,255,255,' + (0.5 + R() * 0.5) + ')'; x.beginPath(); x.arc(ex, ey, 1.4 + R() * 1.6, 0, TAU); x.fill();
+    }
+    x.fillStyle = 'rgba(255,255,255,0.9)'; x.beginPath(); x.arc(hx, hy, r * 0.12, 0, TAU); x.fill();
+    // a few already gone, drifting away
+    for (let i = 0; i < 7; i++) { const sx = hx + r * (0.9 + R() * 1.4), sy = hy - r * (0.2 + R() * 1.2); x.strokeStyle = 'rgba(255,255,255,0.6)'; x.lineWidth = 0.8; x.beginPath(); x.moveTo(sx, sy); x.lineTo(sx - 5, sy + 9); x.stroke(); x.beginPath(); x.arc(sx, sy, 2.4, 0, TAU); x.fill(); }
   }
 }
 
 export function makeFlower(seed, opts) {
   opts = opts || {};
   const R = rng(seed);
-  // a single flower, or two or three leaning together
-  const n = opts.kind ? 1 : (R() < 0.62 ? 1 : R() < 0.7 ? 2 : 3);
-  const names = [];
-  for (let i = 0; i < n; i++) names.push(opts.kind || (i === 0 ? BIG[Math.floor(R() * BIG.length)] : HEAD_NAMES[Math.floor(R() * HEAD_NAMES.length)]));
-  const tall = Math.max(7, Math.round((opts.size || 20) * 0.48));
-  const stems = names.map(function (nm, i) { return Math.max(4, tall - i * (2 + Math.floor(R() * 3)) - (nm === 'bud' || nm === 'bell' ? 2 : 0)); });
-  const W = 34 + n * 6, H = Math.max.apply(null, stems.map(function (s, i) { return s + HEADS[names[i]].length; })) + 2;
-  const g = grid(W, H), base = Math.floor(W / 2);
-  const spots = n === 1 ? [0] : n === 2 ? [-4, 5] : [-7, 0, 7];
-  names.forEach(function (nm, i) { oneFlower(g, R, base + spots[i] + Math.round((R() - 0.5) * 2), stems[i], nm, opts.petal); });
-  // a few specks of light round it
-  for (let i = 0; i < 5; i++) { const r = Math.floor(R() * H * 0.6), c = Math.floor(R() * W); if (!g[r][c]) put(g, r, c, R() < 0.5 ? '.' : R() < 0.5 ? '*' : '+', 0.9); }
-  // into rows of text, trimmed
-  const rowsOut = g.map(function (row) { return row.map(function (c) { return c ? c.ch : ' '; }).join(''); });
-  const order = g.map(function (row) { return row.map(function (c) { return c ? Math.min(1, c.o + (R() - 0.5) * 0.05) : -1; }); });
-  let l = W, rgt = 0;
+  const kind = opts.kind || KINDS[Math.floor(R() * KINDS.length)];
+  const rows = Math.max(10, Math.round(opts.size || (22 + R() * 12)));
+  const cols = Math.round(rows * (kind === 'bells' || kind === 'fern' ? 1.05 : 0.95) / AX);
+  const W = cols * SX, H = rows * SY;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d', { willReadFrequently: true });
+  const bx = W * (0.45 + R() * 0.1), by = H + 2, r = Math.min(W * 0.36, H * 0.24);
+  let hx = W * (0.4 + R() * 0.2), hy = H * (0.28 + R() * 0.06);
+  const bend = (R() - 0.5) * W * 0.4;
+  if (kind === 'bells') {
+    // an arch with bells hanging from it, and one broad leaf behind
+    leaf(x, bx, H * 0.98, H * 0.75, W * 0.14, -Math.PI / 2 - 0.25, 0.45);
+    const tx = W * 0.82, ty = H * 0.5;
+    x.strokeStyle = 'rgba(255,255,255,0.8)'; x.lineWidth = SX * 0.9; x.lineCap = 'round';
+    x.beginPath(); x.moveTo(bx, by); x.quadraticCurveTo(bx - W * 0.05, H * 0.15, tx, ty); x.stroke();
+    const n = 5 + Math.floor(R() * 2);
+    for (let i = 0; i < n; i++) {
+      const t = 0.42 + i / n * 0.55, u = 1 - t, px = u * u * bx + 2 * u * t * (bx - W * 0.05) + t * t * tx, py = u * u * by + 2 * u * t * (H * 0.15) + t * t * ty;
+      const s = H * (0.05 + 0.025 * (1 - i / n)), cy = py + s * 1.6;
+      x.lineWidth = 1.2; x.beginPath(); x.moveTo(px, py); x.quadraticCurveTo(px + s * 0.4, py + s * 0.5, px, cy - s); x.stroke();
+      const g = x.createLinearGradient(0, cy - s, 0, cy + s);
+      g.addColorStop(0, 'rgba(255,255,255,0.95)'); g.addColorStop(1, 'rgba(255,255,255,0.55)');
+      x.fillStyle = g; x.beginPath();
+      x.moveTo(px - s * 0.6, cy - s * 0.3); x.quadraticCurveTo(px - s * 0.7, cy - s * 1.1, px, cy - s * 1.05); x.quadraticCurveTo(px + s * 0.7, cy - s * 1.1, px + s * 0.6, cy - s * 0.3);
+      for (let k = 0; k <= 6; k++) { const q = k / 6; x.lineTo(px + s * (0.75 - q * 1.5), cy + s * (k % 2 ? 0.55 : 0.25)); }
+      x.closePath(); x.fill();
+    }
+    hx = W * 0.5; hy = H * 0.4;
+  } else if (kind === 'fern') {
+    // a frond unrolling: leaflets getting smaller towards the curled tip
+    const pts = [];
+    for (let i = 0; i <= 60; i++) { const t = i / 60; pts.push({ x: bx + Math.sin(t * 2.2) * W * 0.18 + t * t * W * 0.12, y: by - t * H * 0.88 }); }
+    x.strokeStyle = 'rgba(255,255,255,0.75)'; x.lineWidth = SX * 0.7; x.lineCap = 'round';
+    x.beginPath(); pts.forEach(function (p, i) { i ? x.lineTo(p.x, p.y) : x.moveTo(p.x, p.y); }); x.stroke();
+    for (let i = 4; i < 58; i += 3) {
+      const t = i / 60, p = pts[i], q = pts[i + 1], a = Math.atan2(q.y - p.y, q.x - p.x), len = W * 0.26 * (1 - t * 0.85);
+      leaf(x, p.x, p.y, len, len * 0.22, a - 1.25, 0.75); leaf(x, p.x, p.y, len, len * 0.22, a + 1.25, 0.75);
+    }
+    const tip = pts[60];
+    x.beginPath(); x.arc(tip.x + 6, tip.y + 6, 8, Math.PI, TAU * 1.1); x.stroke();
+    hx = tip.x; hy = tip.y;
+  } else {
+    // stem, two leaves, and the head
+    stemPath(x, bx, by, hx, hy + r * 0.2, bend, SX * 0.95);
+    const nl = kind === 'dandelion' ? 1 : 2;
+    for (let i = 0; i < nl; i++) {
+      const t = 0.18 + i * 0.22 + R() * 0.08, p = stemPoint(bx, by, hx, hy + r * 0.2, bend, t), side = i % 2 ? 1 : -1;
+      leaf(x, p.x, p.y, H * (0.22 + R() * 0.08), H * 0.045, side > 0 ? -0.55 - R() * 0.4 : Math.PI + 0.55 + R() * 0.4, 0.7);
+    }
+    paintHead(x, kind, hx, hy, r, R);
+  }
+  // read the painting back, one character at a time
+  const d = x.getImageData(0, 0, W, H).data, A = function (px, py) { return d[(py * W + px) * 4 + 3] / 255; };
+  const rowsOut = [], order = [];
+  for (let rr = 0; rr < rows; rr++) {
+    let line = '';
+    const ord = [];
+    for (let cc = 0; cc < cols; cc++) {
+      let sum = 0, jxx = 0, jyy = 0, jxy = 0, my = 0;
+      for (let yy = 0; yy < SY; yy++) for (let xx = 0; xx < SX; xx++) {
+        const px = cc * SX + xx, py = rr * SY + yy, a = A(px, py);
+        sum += a; my += a * (yy - SY / 2);
+        if (px > 0 && px < W - 1 && py > 0 && py < H - 1) {
+          const gx = A(px + 1, py) - A(px - 1, py), gy = A(px, py + 1) - A(px, py - 1);
+          jxx += gx * gx; jyy += gy * gy; jxy += gx * gy;
+        }
+      }
+      const v = sum / (SX * SY);
+      let ch = ' ';
+      if (v > 0.07) {
+        const tr = jxx + jyy, coh = tr > 1e-4 ? Math.sqrt((jxx - jyy) * (jxx - jyy) + 4 * jxy * jxy) / tr : 0;
+        if (coh > 0.55 && v < 0.5) {
+          // a line runs through here: pick the letter that runs the same way
+          const ga = 0.5 * Math.atan2(2 * jxy, jxx - jyy), ea = ((ga * 180 / Math.PI + 90) % 180 + 180) % 180;
+          if (ea < 22 || ea > 158) ch = my / (sum || 1) > 1.5 ? '_' : '-';
+          else if (ea < 68) ch = '\\';
+          else if (ea < 112) ch = '|';
+          else ch = '/';
+        } else ch = RAMPF[Math.min(RAMPF.length - 1, 1 + Math.floor((v - 0.07) / 0.93 * (RAMPF.length - 1)))];
+      }
+      // the stem grows first, from the ground; then the flower opens from its middle
+      const cx = (cc + 0.5) * SX, cy = (rr + 0.5) * SY, dh = Math.hypot(cx - hx, cy - hy) / (r * 1.3);
+      if (opts.petal && ch !== ' ' && dh < 1 && R() < 0.4) ch = opts.petal;   // what you typed, grown into it
+      line += ch;
+      const o = dh < 1 ? 0.45 + dh * 0.5 : Math.max(0, Math.min(0.45, (by - cy) / Math.max(1, by - hy) * 0.45));
+      ord.push(ch === ' ' ? -1 : Math.min(1, o + (R() - 0.5) * 0.06));
+    }
+    rowsOut.push(line); order.push(ord);
+  }
+  // trim empty columns at the sides and empty rows at the top
+  let l = cols, rgt = 0;
   rowsOut.forEach(function (s) { const a = s.search(/\S/); if (a >= 0) { l = Math.min(l, a); rgt = Math.max(rgt, s.replace(/\s+$/, '').length); } });
   let top = 0; while (top < rowsOut.length - 1 && !rowsOut[top].trim()) top++;
   return { rows: rowsOut.slice(top).map(function (s) { return s.slice(l, rgt); }), order: order.slice(top).map(function (o) { return o.slice(l, rgt); }) };

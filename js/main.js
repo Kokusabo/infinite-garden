@@ -4,12 +4,12 @@
  * pages from a book about all this. Touch, and a flower made of letters grows there.
  * Hold, and your eyes close. Type, and what you type grows. It does not end. */
 import * as THREE from '../vendor/three.module.min.js';
-import { createEye, cover, TRANSITIONS } from './eye.js?v=2';
-import { createWorld, WORLD_NAMES } from './worlds.js?v=4';
-import { makeFlower, bloom, createLetters } from './ascii.js?v=4';
-import { createScenes } from './scenes.js?v=2';
-import { createType } from './type.js?v=3';
-import { createPages } from './pages.js?v=2';
+import { createEye, cover, TRANSITIONS } from './eye.js?v=3';
+import { createWorld, WORLD_NAMES } from './worlds.js?v=5';
+import { makeFlower, bloom, createLetters } from './ascii.js?v=5';
+import { createScenes } from './scenes.js?v=3';
+import { createType } from './type.js?v=4';
+import { createPages } from './pages.js?v=3';
 import { createSound } from './sound.js?v=3';
 
 const $ = function (s) { return document.querySelector(s); };
@@ -45,7 +45,7 @@ eject.addEventListener('click', function () { const open = tapes.hidden; tapes.h
 /* ---------- opening the eyes ---------- */
 const lids = $('#lids'), openBtn = $('#open'), hint = $('#hint');
 let started = false, openedAt = 1e9;
-$('#first').textContent = makeFlower((Math.random() * 1e9) | 0, { kind: 'tulip', size: 15 }).rows.join('\n');
+$('#first').textContent = makeFlower((Math.random() * 1e9) | 0, { kind: 'tulip', size: 26 }).rows.join('\n');
 function begin() {
   if (started) return;
   started = true; openedAt = clock();
@@ -137,8 +137,8 @@ function run() {
 
   function plant(x, y, petal, big) {
     const small = window.innerWidth < 700;
-    const sz = big ? (small ? 14 : 22) : (small ? rand(11, 13) : rand(15, 19));
-    const f = makeFlower((Math.random() * 1e9) | 0, { size: big ? 26 : rand(14, 24), petal: petal });
+    const sz = big ? (small ? 8.5 : 12.5) : (small ? rand(7, 8.5) : rand(9.5, 12));
+    const f = makeFlower((Math.random() * 1e9) | 0, { size: big ? 34 : Math.round(rand(24, 32)), petal: petal });
     const b = bloom(garden, f, x, y, sz, big ? 6 : rand(6, 10));
     if (big) b.el.classList.add('after');
     b.big = big;

@@ -3,7 +3,7 @@
  * an empty white room where something grows towards the window. Each is drawn small,
  * into its own picture, and then seen through the same eyes as the photographs. */
 import * as THREE from '../vendor/three.module.min.js';
-import { makeFlower } from './ascii.js?v=4';
+import { makeFlower } from './ascii.js?v=5';
 
 const TAU = Math.PI * 2;
 function rng(seed) { let s = seed >>> 0 || 1; return function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }

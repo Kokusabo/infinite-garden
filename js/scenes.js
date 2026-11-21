@@ -2,7 +2,7 @@
  * an old 3d place, a photograph remembered as letters, or a page, like a page torn out
  * of a book about a garden. Each has its own green, its own words, and its own way of
  * turning into the next one. The same visit always unfolds the same way. */
-import { rng } from './ascii.js?v=4';
+import { rng } from './ascii.js?v=5';
 
 export const LINES = [
   'it was brighter than this', 'don\'t look straight at it', 'the grass grew over the sound', 'somebody planted you here',

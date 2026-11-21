@@ -2,7 +2,7 @@
  * about it: one word as large as the screen; a contact sheet of three sharp photographs
  * with their captions; a list of greens, each with a name; a word drawn in letters on
  * dark green. A page opens over the picture as you scroll into it, and closes as you leave. */
-import { makeFlower, banner } from './ascii.js?v=4';
+import { makeFlower, banner } from './ascii.js?v=5';
 
 const BGS = [
   { bg: '#f3f8ea', ink: '#24452c', soft: '#6f8f72' },
@@ -33,7 +33,7 @@ export function createPages(root, footage) {
     page.style.setProperty('--bg', col.bg); page.style.setProperty('--ink', col.ink); page.style.setProperty('--soft', col.soft);
     page.style.backgroundImage = 'url(' + grain() + ')';
     const inner = el('div', 'page-in'); page.appendChild(inner);
-    const f = makeFlower(P.flower, { size: 16 });
+    const f = makeFlower(P.flower, { size: 28 });
     if (P.kind === 'word') {
       inner.appendChild(el('p', 'pg-note', P.note));
       inner.appendChild(el('h2', 'pg-word', P.word));

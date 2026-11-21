@@ -116,12 +116,9 @@ ${COMMON}
 vec3 S(vec2 uv) { return texture2D(tScene, clamp(uv, 0.001, 0.999)).rgb; }
 void main() {
   vec2 uv = vUv;
-  float band = 0.0;
   if (uTape > 0.001) {
     float line = floor(uv.y * 240.0), tick = floor(uTime * 30.0);
     uv.x += (h1(vec2(line, tick)) - 0.5) * 0.004 * uTape + sin(uv.y * 30.0 + uTime * 2.0) * 0.0015 * uTape;
-    band = smoothstep(0.03, 0.0, abs(uv.y - fract(uTime * 0.06))) * uTape;
-    uv.x += band * (h1(vec2(line, tick + 5.0)) - 0.5) * 0.04;
   }
   // moving fast tears the picture along the way it moves
   float va = clamp(abs(uVel) * 0.5, 0.0, 1.0);
@@ -183,7 +180,6 @@ void main() {
   col = mix(col, col * vec3(0.94, 1.0, 0.9) + vec3(0.03, 0.07, 0.035) * (1.0 - col), uHaze);
   if (uTape > 0.001) {
     col *= 1.0 - uTape * 0.1 * step(0.5, fract(gl_FragCoord.y * 0.5));
-    col = mix(col, vec3(h1(gl_FragCoord.xy + floor(uTime * 30.0))) * 0.7 + col * 0.5, band * 0.5);
   }
   col = mix(col, col * vec3(0.16, 0.3, 0.2) + vec3(0.01, 0.035, 0.02), uDim);
   vec3 after = vec3(0.012, 0.045, 0.03) + (b * 0.35 + st * 0.25) * vec3(0.55, 0.85, 0.4) + vec3(0.25, 0.4, 0.15) * exp(-r * 3.0) * uSunAmt;
