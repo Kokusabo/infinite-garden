@@ -1,7 +1,7 @@
 /* type.js - the words. Each scene's words are built from single letters, so they can
  * gather out of a blur as you arrive and come apart, letter by letter, as you leave.
  * Nothing here runs on a clock: it all follows the scroll, forwards and backwards. */
-import { banner } from './ascii.js?v=3';
+import { banner } from './ascii.js?v=4';
 
 const GLYPHS = '.:;-=+*#%@/\\|<>~';
 function clamp(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
@@ -83,7 +83,7 @@ export function createType(root) {
         if (!live.has(i)) live.set(i, build(s));
         draw(live.get(i), pos - i, t);
       }
-      live.forEach(function (o, i) { if (i < lo - 1 || i > hi + 1) { o.box.remove(); live.delete(i); } });
+      live.forEach(function (o, i) { if (i < lo || i > hi) o.box.style.visibility = 'hidden'; if (i < lo - 1 || i > hi + 1) { o.box.remove(); live.delete(i); } });
     }
   };
 }

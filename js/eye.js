@@ -109,7 +109,7 @@ void main() {
 const OPTICS = `
 precision highp float;
 uniform sampler2D tScene;
-uniform float uTime, uAstig, uAngle, uGhost, uExpose, uBlind, uClosed, uSunAmt, uStreak, uLeak, uTape, uDim, uVel;
+uniform float uTime, uAstig, uAngle, uGhost, uExpose, uBlind, uClosed, uSunAmt, uStreak, uLeak, uTape, uDim, uVel, uHaze, uFlare, uChroma;
 uniform vec2 uSun, uGhostDir, uAspect;
 varying vec2 vUv;
 ${COMMON}
@@ -129,17 +129,24 @@ void main() {
   vec2 dir = d0 / uAspect, per = vec2(-d0.y, d0.x) / uAspect;
   float L = uAstig * 0.022 + va * 0.07;
   vec3 col = vec3(0.0);
-  for (int i = 0; i < 16; i++) {
-    float fi = float(i), a = fi * 2.39996, r = sqrt((fi + 0.5) / 16.0);
-    col += S(uv + dir * cos(a) * r * L + per * sin(a) * r * L * 0.22);
+  if (L < 0.0012) col = S(uv);          // in focus: the picture as it is
+  else {
+    for (int i = 0; i < 16; i++) {
+      float fi = float(i), a = fi * 2.39996, r = sqrt((fi + 0.5) / 16.0);
+      col += S(uv + dir * cos(a) * r * L + per * sin(a) * r * L * 0.22);
+    }
+    col /= 16.0;
   }
-  col /= 16.0;
+  // colours coming apart for a moment
+  if (uChroma > 0.001) { col.r = S(uv + vec2(uChroma * 0.012, uChroma * 0.003)).r; col.b = S(uv - vec2(uChroma * 0.012, uChroma * 0.003)).b; }
   col.r = mix(col.r, S(uv + vec2(0.0, uVel * 0.02)).r, va);
   col.b = mix(col.b, S(uv - vec2(0.0, uVel * 0.02)).b, va);
-  vec3 g = (S(uv + uGhostDir * 0.6) + S(uv + uGhostDir + dir * L * 0.5) + S(uv + uGhostDir - dir * L * 0.5)) / 3.0;
-  col = mix(col, max(col, g), uGhost * 0.55);
+  if (uGhost > 0.01) {
+    vec3 g = (S(uv + uGhostDir * 0.6) + S(uv + uGhostDir + dir * L * 0.5) + S(uv + uGhostDir - dir * L * 0.5)) / 3.0;
+    col = mix(col, max(col, g), uGhost * 0.55);
+  }
   vec3 st = vec3(0.0);
-  for (int i = 1; i <= 5; i++) {
+  if (uStreak > 0.01) for (int i = 1; i <= 5; i++) {
     float s = float(i) / 5.0, f = (1.0 - s) * (1.0 - s);
     st += (max(S(uv + dir * s * 0.16) - 0.72, 0.0) + max(S(uv - dir * s * 0.16) - 0.72, 0.0)) * f;
     st += (max(S(uv + per * s * 0.06) - 0.75, 0.0) + max(S(uv - per * s * 0.06) - 0.75, 0.0)) * f * 0.5;
@@ -152,6 +159,15 @@ void main() {
   float r = length(d), ang = atan(d.y, d.x);
   float rays = pow(vnoise(vec2(ang * 7.0 + uTime * 0.05, 0.0)) * 0.6 + vnoise(vec2(ang * 23.0 - uTime * 0.03, 3.0)) * 0.4, 3.0);
   col += vec3(1.0, 0.99, 0.86) * (exp(-r * 5.5) * 0.9 + exp(-r * 1.6) * 0.35 + rays * exp(-r * 2.2) * 0.9 + smoothstep(0.03, 0.0, abs(r - 0.22)) * 0.05) * uSunAmt;
+  // a flare: a long flat streak through the sun, and the lens's ghosts on the line through the middle
+  if (uFlare > 0.001) {
+    col += vec3(0.85, 1.0, 0.9) * exp(-abs(uv.y - uSun.y) * 90.0) * smoothstep(1.2, 0.0, abs(uv.x - uSun.x)) * uFlare * 0.9;
+    for (int i = 1; i <= 4; i++) {
+      vec2 gp = uSun + (vec2(0.5) - uSun) * float(i) * 0.55;
+      float gr = length((uv - gp) * uAspect), rad = 0.03 + float(i) * 0.025;
+      col += mix(vec3(0.7, 1.0, 0.75), vec3(1.0, 0.95, 0.7), float(i) / 4.0) * smoothstep(rad, rad * 0.6, gr) * 0.12 * uFlare;
+    }
+  }
   float lk = smoothstep(0.9, 0.0, abs(uv.x + sin(uTime * 0.07) * 0.6 - 0.5 + (uv.y - 0.5) * 0.5));
   col += vec3(0.55, 0.62, 0.25) * lk * uLeak * 0.25;
   if (uTape > 0.001) {
@@ -159,9 +175,12 @@ void main() {
     float y = dot(col, vec3(0.299, 0.587, 0.114));
     col = mix(col, (vec3(y) + (sm - dot(sm, vec3(0.299, 0.587, 0.114))) * 1.15) * vec3(0.97, 1.03, 0.9), uTape);
   }
-  col = 1.0 - exp(-col * uExpose);
-  col = mix(col, vec3(dot(col, vec3(0.3, 0.55, 0.15))), 0.1);
-  col = col * vec3(0.94, 1.0, 0.9) + vec3(0.03, 0.07, 0.035) * (1.0 - col);
+  // haze: the light pressed soft and green; with little haze the picture keeps its own contrast
+  vec3 soft = 1.0 - exp(-col * uExpose);
+  vec3 plain = clamp(col * (0.55 + 0.3 * uExpose), 0.0, 1.0);
+  col = mix(plain, soft, uHaze);
+  col = mix(col, vec3(dot(col, vec3(0.3, 0.55, 0.15))), 0.1 * uHaze);
+  col = mix(col, col * vec3(0.94, 1.0, 0.9) + vec3(0.03, 0.07, 0.035) * (1.0 - col), uHaze);
   if (uTape > 0.001) {
     col *= 1.0 - uTape * 0.1 * step(0.5, fract(gl_FragCoord.y * 0.5));
     col = mix(col, vec3(h1(gl_FragCoord.xy + floor(uTime * 30.0))) * 0.7 + col * 0.5, band * 0.5);
@@ -187,6 +206,7 @@ export function createEye(renderer) {
   const O = {
     tScene: { value: rt.texture }, uTime: { value: 0 }, uAstig: { value: 1 }, uAngle: { value: 0.3 }, uGhost: { value: 0.5 }, uExpose: { value: 1.6 },
     uBlind: { value: 0 }, uClosed: { value: 0 }, uSunAmt: { value: 0.6 }, uStreak: { value: 1 }, uLeak: { value: 0.5 }, uTape: { value: 0 }, uDim: { value: 0 }, uVel: { value: 0 },
+    uHaze: { value: 1 }, uFlare: { value: 0 }, uChroma: { value: 0 },
     uSun: { value: new THREE.Vector2(0.7, 0.75) }, uGhostDir: { value: new THREE.Vector2(0.006, 0.003) }, uAspect: { value: new THREE.Vector2(1, 1) }
   };
   const quad = function (frag, U) {

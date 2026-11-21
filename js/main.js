@@ -4,12 +4,12 @@
  * pages from a book about all this. Touch, and a flower made of letters grows there.
  * Hold, and your eyes close. Type, and what you type grows. It does not end. */
 import * as THREE from '../vendor/three.module.min.js';
-import { createEye, cover, TRANSITIONS } from './eye.js?v=1';
-import { createWorld, WORLD_NAMES } from './worlds.js?v=3';
-import { makeFlower, bloom, createLetters } from './ascii.js?v=3';
-import { createScenes } from './scenes.js?v=1';
-import { createType } from './type.js?v=1';
-import { createPages } from './pages.js?v=1';
+import { createEye, cover, TRANSITIONS } from './eye.js?v=2';
+import { createWorld, WORLD_NAMES } from './worlds.js?v=4';
+import { makeFlower, bloom, createLetters } from './ascii.js?v=4';
+import { createScenes } from './scenes.js?v=2';
+import { createType } from './type.js?v=3';
+import { createPages } from './pages.js?v=2';
 import { createSound } from './sound.js?v=3';
 
 const $ = function (s) { return document.querySelector(s); };
@@ -68,7 +68,7 @@ else run();
 function run() {
   const eye = createEye(renderer), C = eye.compose, O = eye.optics;
   function size() {
-    const scale = Math.min(window.devicePixelRatio || 1, 2) * (window.innerWidth < 700 ? 0.42 : 0.55);
+    const scale = Math.min(window.devicePixelRatio || 1, 1.5) * (window.innerWidth < 700 ? 0.75 : 0.85);
     renderer.setPixelRatio(scale);
     renderer.setSize(window.innerWidth, window.innerHeight, false);
     eye.size();
@@ -113,7 +113,7 @@ function run() {
   // where a scene's picture sits on the screen: a slow drift, and a push as you scroll past it
   function fit(s, src, d, t, out) {
     const a = window.innerWidth / window.innerHeight;
-    const z = lerp(s.z0, s.z1, 0.5 + 0.5 * Math.sin(t * 0.05 + s.seed * 6.28)) + Math.abs(d) * 0.08;
+    const z = (lerp(s.z0, s.z1, 0.5 + 0.5 * Math.sin(t * 0.05 + s.seed * 6.28)) + Math.abs(d) * 0.08) * (1 + punch * 0.14);
     const px = s.px + s.dx * Math.sin(t * 0.031 + s.seed * 3), py = s.py + s.dy * Math.cos(t * 0.027 + s.seed * 5) - d * 0.5;
     return cover(src.w, src.h, a, z, Math.max(-1, Math.min(1, px)), Math.max(-1, Math.min(1, py)), out);
   }
@@ -137,7 +137,7 @@ function run() {
 
   function plant(x, y, petal, big) {
     const small = window.innerWidth < 700;
-    const sz = big ? (small ? 13 : 20) : (small ? rand(9.5, 12) : rand(13, 18));
+    const sz = big ? (small ? 14 : 22) : (small ? rand(11, 13) : rand(15, 19));
     const f = makeFlower((Math.random() * 1e9) | 0, { size: big ? 26 : rand(14, 24), petal: petal });
     const b = bloom(garden, f, x, y, sz, big ? 6 : rand(6, 10));
     if (big) b.el.classList.add('after');
@@ -224,12 +224,23 @@ function run() {
 
   /* ---- the eye's own life ---- */
   let closed = 0, angle = rand(0, Math.PI), angleV = rand(-0.05, 0.05);
-  let blinkT0 = -1, nextBlink = rand(20, 40), twice = false, focusT0 = -1, nextFocus = rand(30, 50);
+  let blinkT0 = -1, nextBlink = rand(20, 40), twice = false;
+  // how each kind of scene is seen: mostly clear; sometimes soft; sometimes smeared the astigmatic way
+  const LOOK = {
+    sharp: { astig: 0, ghost: 0, streak: 0.35, haze: 0.28, sun: 0.22, flow: 0.12 },
+    soft: { astig: 0.42, ghost: 0.2, streak: 0.7, haze: 0.65, sun: 0.45, flow: 0.55 },
+    astig: { astig: 1.15, ghost: 0.6, streak: 1.1, haze: 1, sun: 0.62, flow: 1 }
+  };
+  // and things that happen to the eye while you look: flashes, a flare, colours slipping, a moment out of focus
+  const EVENTS = { flash: 0.5, flare: 1.8, chroma: 0.5, blur: 1.6, double: 1.0, punch: 0.4, leak: 2.2 };
+  const EVENT_NAMES = Object.keys(EVENTS);
+  let evName = '', evT0 = -1, evHold = -1, nextEvent = rand(2.5, 5), punch = 0;
+  function happen(name, t) { evName = name; evT0 = t; evHold = -1; }
   let blindT0 = -1, blindPlanted = false, blindFor = -1, lastHalf = '', lastNear = -1, holdAt = -1;
 
   if (/[?&]debug\b/.test(location.search)) {
     window.__garden = {
-      begin: begin, go: function (i) { target = i; pos = i; vel = 0; }, to: function (i) { target = i; }, pos: function () { return pos; },
+      begin: begin, event: function (n, hold) { happen(n, clock()); evHold = hold === undefined ? -1 : hold; }, go: function (i) { target = i; pos = i; vel = 0; }, to: function (i) { target = i; }, pos: function () { return pos; },
       scene: function (i) { return get(i); }, freeze: function (k) { holdAt = k; },
       find: function (kind, from) { for (let i = from || 0; i < 400; i++) if (get(i).kind === kind) return i; return -1; },
       findTrans: function (tr, from) { for (let i = from || 1; i < 400; i++) if (get(i).trans === tr && get(i).kind === 'photo' && get(i + 1).kind === 'photo') return i; return -1; },
@@ -283,24 +294,41 @@ function run() {
     }
     lastHalf = half;
     const near = Math.round(pos);
-    if (near !== lastNear) { lastNear = near; if (get(near).kind === 'page') sound.bell(); }
+    if (near !== lastNear) {
+      lastNear = near;
+      if (get(near).kind === 'page') sound.bell();
+      else if (!reduced && t - openedAt > 4 && Math.random() < 0.4) { happen(['flash', 'punch', 'chroma', 'flare'][Math.floor(Math.random() * 4)], t); nextEvent = t - openedAt + rand(2.5, 6); }
+    }
 
     // the eye: the smear turns; the faster you go the more it tears
     angleV += (Math.random() - 0.5) * dt * 0.02; angleV = Math.max(-0.07, Math.min(0.07, angleV));
     angle += angleV * dt * (reduced ? 0.3 : 1);
-    let focus = 1;
-    if (!reduced && focusT0 < 0 && t - openedAt > nextFocus) { focusT0 = t; nextFocus = t - openedAt + rand(35, 60); }
-    if (focusT0 >= 0) { const f = t - focusT0; focus = 1 - 0.72 * (f < 1.6 ? smooth(f / 1.6) : f < 4.2 ? 1 : 1 - smooth((f - 4.2) / 1.8)); if (f > 6) focusT0 = -1; }
+    const lookA = LOOK[A.focus] || LOOK.sharp, lookB = LOOK[B.focus] || LOOK.sharp, look = function (k) { return lerp(lookA[k], lookB[k], p); };
+    // something happens: now and then while you stay, and sometimes the moment you arrive
+    if (!reduced && evT0 < 0 && Math.abs(vel) < 0.2 && tri < 0.01 && t - openedAt > nextEvent) { happen(EVENT_NAMES[Math.floor(Math.random() * EVENT_NAMES.length)], t); nextEvent = t - openedAt + rand(2.2, 6); }
+    let ev = 0;
+    if (evT0 >= 0) {
+      const k = evHold >= 0 ? evHold : (t - evT0) / EVENTS[evName];
+      // a flash and a jolt hit at once and fade; the rest swell and go
+      ev = k >= 1 ? 0 : evName === 'flash' || evName === 'punch' ? (k < 0.07 ? k / 0.07 : Math.exp(-(k - 0.07) * 4.5)) : Math.sin(Math.PI * k);
+      if (k >= 1) evT0 = -1;
+    }
+    const e = function (n) { return evT0 >= 0 && evName === n ? ev : 0; };
+    punch = e('punch');
     O.uAngle.value = angle;
-    O.uAstig.value = (1.0 + 0.35 * Math.sin(t * 0.21) + 0.15 * Math.sin(t * 0.67)) * focus * (1 - tri * 0.55);
-    O.uGhost.value = 0.55 + 0.35 * Math.sin(t * 0.13 + 1);
-    O.uGhostDir.value.set(Math.cos(t * 0.05) * 0.008, Math.sin(t * 0.07) * 0.005);
+    O.uAstig.value = (look('astig') * (1.0 + 0.3 * Math.sin(t * 0.21)) + e('blur') * 1.4) * (1 - tri * 0.55);
+    O.uGhost.value = Math.max(look('ghost') * (0.8 + 0.2 * Math.sin(t * 0.13 + 1)), e('double'));
+    O.uGhostDir.value.set(Math.cos(t * 0.05) * 0.008 * (1 + e('double') * 3), Math.sin(t * 0.07) * 0.005 * (1 + e('double') * 3));
+    O.uFlare.value = e('flare');
+    O.uChroma.value = e('chroma') * (1.5 + Math.random() * 0.8) + (punch + e('flash')) * 0.8 + tri * 0.4;
+    O.uHaze.value = Math.max(look('haze'), tri * 0.6);
+    C.uFlow.value = look('flow');
     O.uVel.value = reduced ? 0 : Math.max(-2.5, Math.min(2.5, vel * 0.32));
     if (!mouse) sunT.set(0.5 + Math.sin(t * 0.031) * 0.38, 0.62 + Math.sin(t * 0.047) * 0.3);
     sun.lerp(sunT, 1 - Math.exp(-dt * (mouse ? 1.5 : 0.5)));
     O.uSun.value.copy(sun);
-    O.uStreak.value = 1.0 + 0.4 * Math.sin(t * 0.17) + tri * 0.6;
-    O.uLeak.value = 0.5 + 0.5 * Math.sin(t * 0.09);
+    O.uStreak.value = look('streak') * (1.0 + 0.3 * Math.sin(t * 0.17)) + tri * 0.6 + e('flare') * 0.8;
+    O.uLeak.value = (0.5 + 0.5 * Math.sin(t * 0.09)) * look('haze') + e('leak') * 2.4;
     O.uTape.value += ((A.tape ? 1 - p : 0) + (B.tape ? p : 0) - O.uTape.value) * (1 - Math.exp(-dt * 6));
     const date = O.uTape.value > 0.4 ? (p > 0.5 ? B.date : A.date) || '' : '';
     if (stamp.textContent !== date) stamp.textContent = date;
@@ -317,9 +345,9 @@ function run() {
     }
     const opening = 1 - smooth((t - openedAt) / 3.5);
     flash = Math.max(0, flash - dt * 0.9);
-    O.uBlind.value = Math.min(1, Math.max(blind, opening * 0.95, flash));
-    O.uExpose.value = expose * (1 + opening * 1.5) * (1 + tri * 0.25);
-    O.uSunAmt.value = 0.55 + 0.25 * Math.sin(t * 0.23) + blind * 0.6;
+    O.uBlind.value = Math.min(1, Math.max(blind, opening * 0.95, flash, e('flash') * 0.93));
+    O.uExpose.value = expose * (1 + opening * 1.5) * (1 + tri * 0.25) * (1 + e('flash') * 1.6 + e('flare') * 0.35);
+    O.uSunAmt.value = look('sun') * (1 + 0.35 * Math.sin(t * 0.23)) + blind * 0.6 + e('flare') * 0.4;
 
     // blinking, and the eyes held shut
     let lid = 0;

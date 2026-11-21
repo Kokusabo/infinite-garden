@@ -2,7 +2,7 @@
  * about it: one word as large as the screen; a contact sheet of three sharp photographs
  * with their captions; a list of greens, each with a name; a word drawn in letters on
  * dark green. A page opens over the picture as you scroll into it, and closes as you leave. */
-import { makeFlower, banner } from './ascii.js?v=3';
+import { makeFlower, banner } from './ascii.js?v=4';
 
 const BGS = [
   { bg: '#f3f8ea', ink: '#24452c', soft: '#6f8f72' },

@@ -32,7 +32,7 @@ body { font: 300 1rem/1.4 var(--f-mono); color: #fff; -webkit-font-smoothing: an
   position: absolute; margin: 0;
   font-family: var(--f-mono); font-weight: 400; line-height: 1; letter-spacing: 0;
   white-space: pre; color: #fff;
-  text-shadow: 0 0 1px rgba(255, 255, 255, 0.95), 0 0 4px rgba(24, 58, 30, 0.6), 0 0 14px rgba(24, 58, 30, 0.3);
+  text-shadow: 0 0 1px rgba(255, 255, 255, 0.95), 0 0 3px rgba(20, 52, 26, 0.75), 0 0 9px rgba(20, 52, 26, 0.45), 0 0 22px rgba(20, 52, 26, 0.25);
 }
 /* what the sun leaves on the eye */
 .bloom.after { color: #2c5d36; text-shadow: 0 0 1px rgba(44, 93, 54, 0.6), 0 0 10px rgba(255, 255, 250, 0.9); transition: color 4s ease; }

@@ -14,161 +14,91 @@ export function rng(seed) {
   return f;
 }
 
-/* ---- distances ---- */
-function ellipse(px, py, cx, cy, rx, ry, a) {
-  const c = Math.cos(a), s = Math.sin(a), x = (px - cx) * c + (py - cy) * s, y = -(px - cx) * s + (py - cy) * c;
-  const k = Math.hypot(x / rx, y / ry);
-  return (k - 1) * Math.min(rx, ry);
-}
-function circle(px, py, cx, cy, r) { return Math.hypot(px - cx, py - cy) - r; }
-function segDist(px, py, ax, ay, bx, by) {
-  const vx = bx - ax, vy = by - ay, t = Math.max(0, Math.min(1, ((px - ax) * vx + (py - ay) * vy) / (vx * vx + vy * vy)));
-  return [Math.hypot(px - ax - vx * t, py - ay - vy * t), t];
+/* ---- flowers drawn by hand, letter by letter, and put together differently every time ---- */
+// heads: every row is centred on the stem, so they can be written plainly
+const HEADS = {
+  daisy: ['__   __', '_(  \\_/  )_', '(__  (@)  __)', '(_ /   \\ _)', '(_/ \\_)'],
+  tulip: ['. . .', '/\\/ \\/\\', '|   |   |', '\\  |  /', "'-+-'"],
+  rose: [".-'''-.", '/ .---. \\', '| ( (@) ) |', "\\ '---' /", "'-._.-'"],
+  poppy: ['_.---._', ".'  . .  '.", '(   (_*_)   )', "'.  ' '  .'", "'-...-'"],
+  dandelion: [".  '  .", "'  \\ | /  '", '. -- (*) -- .', "'  / | \\  '", "'  .  '"],
+  cosmos: ['_   _', '( \\ / )', '_  \\ V /  _', "( '-(o)-' )", "'-' | '-'"],
+  sunflower: ['\\ | /', "'. \\ | / .'", '-- (#@#) --', ".' / | \\ '.", '/ | \\'],
+  bell: ['.-.', '/   \\', '(_____)', "' ' '"],
+  bud: ['.', '(@)', '\\|/']
+};
+const HEAD_NAMES = Object.keys(HEADS);
+const BIG = ['daisy', 'tulip', 'rose', 'poppy', 'dandelion', 'cosmos', 'sunflower'];
+// leaves, written to sit just left (or right) of the stem
+const LEAF_L = [['.-.  ', "\\  '-", " '-._"], ['  _  ', '/ `-.', "'-._ "], ['     ', ',_   ', "'-._ "]];
+const LEAF_R = [['  .-.', "-'  /", "_.-' "], ['  _  ', ".-' \\", " _.-'"], ['     ', '   _,', " _.-'"]];
+const CENTERS = ['@', '*', 'o', '#'];
+
+function grid(w, h) { const g = []; for (let i = 0; i < h; i++) g.push(new Array(w).fill(null)); return g; }
+function put(g, row, col, ch, ord) {
+  if (row < 0 || row >= g.length || col < 0 || col >= g[0].length || ch === ' ') return;
+  g[row][col] = { ch: ch, o: ord };
 }
 
-// a flower: parts are { d(x, y) -> distance, edge: true for outlines, fill: char or null, order(x, y) -> 0..1 }
+// one flower into the grid: its stem standing on (baseCol, last row), its height in rows
+function oneFlower(g, R, baseCol, stemLen, name, petal) {
+  const head = HEADS[name], rows = g.length;
+  // the stem, from the ground up, leaning a little now and then
+  let x = baseCol, lean = R() < 0.5 ? -1 : 1, sinceTurn = 0;
+  const xs = [];
+  for (let i = 0; i < stemLen; i++) {
+    const row = rows - 1 - i;
+    let ch = '|';
+    if (sinceTurn > 2 && R() < 0.22) { x += lean; ch = lean > 0 ? '/' : '\\'; sinceTurn = 0; if (R() < 0.4) lean = -lean; } else sinceTurn++;
+    xs.push(x);
+    put(g, row, x, ch, (i / stemLen) * 0.42);
+  }
+  // leaves on the stem, never too high
+  const nLeaves = stemLen > 5 ? 1 + Math.floor(R() * 2) : 0;
+  let side = R() < 0.5 ? -1 : 1;
+  for (let k = 0; k < nLeaves; k++) {
+    const i = 1 + Math.floor(R() * Math.max(1, stemLen * 0.55 - 2)) + k * 2, row = rows - 1 - i - 2, sx = xs[Math.min(i, xs.length - 1)];
+    const L = side < 0 ? LEAF_L[Math.floor(R() * LEAF_L.length)] : LEAF_R[Math.floor(R() * LEAF_R.length)];
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 5; c++) put(g, row + r, side < 0 ? sx - 5 + c : sx + 1 + c, L[r][c], (i / stemLen) * 0.42 + 0.04);
+    side = -side;
+  }
+  // the head, centred on the top of the stem
+  const top = rows - 1 - stemLen, hx = xs[xs.length - 1], hh = head.length, mid = (hh - 1) / 2;
+  const centre = CENTERS[Math.floor(R() * CENTERS.length)];
+  for (let r = 0; r < hh; r++) {
+    const line = head[r], off = hx - Math.floor(line.length / 2), row = top - hh + 1 + r;
+    for (let c = 0; c < line.length; c++) {
+      let ch = line[c];
+      if (ch === '@' || ch === '*' || ch === 'o' || ch === '#') ch = petal || (R() < 0.5 ? ch : centre);
+      else if (petal && (ch === '.' || ch === "'") && R() < 0.5) ch = petal;
+      const d = Math.hypot((c - line.length / 2) * 0.55, r - mid) / Math.max(2, hh * 0.8);
+      put(g, row, off + c, ch, 0.45 + Math.min(1, d) * 0.5);
+    }
+  }
+}
+
 export function makeFlower(seed, opts) {
   opts = opts || {};
   const R = rng(seed);
-  const kind = opts.kind || ['daisy', 'daisy', 'tulip', 'bells', 'poppy', 'sprig', 'lily', 'star'][Math.floor(R() * 8)];
-  const H = Math.round((opts.size || (18 + R() * 14)));       // rows
-  const Wd = Math.round(H * (0.9 + R() * 0.5) / AX);         // columns
-  const cx = Wd * AX / 2 + (R() - 0.5) * 2, top = H * (0.08 + R() * 0.06);
-  const parts = [];
-  // the stem: a gentle curve from the ground to the head
-  const head = { x: cx + (R() - 0.5) * H * 0.25, y: top + H * (kind === 'bells' ? 0.18 : 0.26) };
-  const base = { x: cx + (R() - 0.5) * 2, y: H - 0.6 };
-  const bend = (R() - 0.5) * H * 0.35;
-  const stemPts = [];
-  for (let i = 0; i <= 24; i++) {
-    const t = i / 24;
-    stemPts.push({ x: base.x + (head.x - base.x) * t + Math.sin(t * Math.PI) * bend * 0.4, y: base.y + (head.y - base.y) * t });
-  }
-  const stemD = function (x, y) {
-    let best = 1e9, bt = 0;
-    for (let i = 0; i < stemPts.length - 1; i++) { const r = segDist(x, y, stemPts[i].x, stemPts[i].y, stemPts[i + 1].x, stemPts[i + 1].y); if (r[0] < best) { best = r[0]; bt = (i + r[1]) / (stemPts.length - 1); } }
-    return [best, bt];
-  };
-  parts.push({ g: 'stem', stem: true, d: function (x, y) { return stemD(x, y)[0]; }, order: function (x, y) { return stemD(x, y)[1] * 0.45; } });
-  // leaves along the stem
-  const nLeaves = kind === 'sprig' ? 4 + Math.floor(R() * 2) : Math.floor(R() * 3);
-  for (let i = 0; i < nLeaves; i++) {
-    const t = kind === 'sprig' ? 0.12 + i / nLeaves * 0.8 : 0.15 + R() * 0.4, p = stemPts[Math.floor(t * 24)], side = (i % 2 ? 1 : -1) * (R() < 0.85 ? 1 : -1);
-    const len = H * (kind === 'sprig' ? 0.14 + R() * 0.06 : 0.16 + R() * 0.08), a = side * (0.5 + R() * 0.5) - Math.PI / 2 * 0;
-    const lx = p.x + Math.cos(-Math.PI / 2 + side * (0.9 + R() * 0.4)) * len * 0.55 * (side), ly = p.y - len * 0.25;
-    const ang = side > 0 ? -0.5 - R() * 0.4 : 0.5 + R() * 0.4;
-    parts.push({ g: 'leaf' + i, d: function (x, y) { return ellipse(x, y, p.x + side * len * 0.5, p.y - len * 0.22, len * 0.5, len * 0.26, ang); }, order: function () { return t * 0.45 + 0.05; } });
-    void lx; void ly; void a;
-  }
-  const hx = head.x, hy = head.y;
-  const radial = function (x, y, r) { return 0.45 + Math.min(1, Math.hypot(x - hx, y - hy) / r) * 0.55; };
-  if (kind === 'daisy' || kind === 'star') {
-    const n = kind === 'star' ? 5 + Math.floor(R() * 2) : 7 + Math.floor(R() * 6), r = H * (0.17 + R() * 0.07), w = r * (kind === 'star' ? 0.3 : 0.22 + R() * 0.1), rot = R() * TAU;
-    for (let i = 0; i < n; i++) {
-      const a = rot + i / n * TAU;
-      parts.push({ g: 'head', d: function (x, y) { return ellipse(x, y, hx + Math.cos(a) * r * 0.62, hy + Math.sin(a) * r * 0.62, r * 0.5, w, a); }, order: function (x, y) { return radial(x, y, r * 1.2); } });
-    }
-    const cr = r * (0.22 + R() * 0.1);
-    parts.push({ fill: R() < 0.5 ? '@' : 'o', solid: true, d: function (x, y) { return circle(x, y, hx, hy, cr); }, order: function () { return 0.45; } });
-  } else if (kind === 'tulip' || kind === 'lily') {
-    const r = H * (0.16 + R() * 0.06), lily = kind === 'lily';
-    const petals = lily ? [[-1.1, 0.9], [-0.4, 0.95], [0.4, 0.95], [1.1, 0.9], [0, 1]] : [[-0.55, 1], [0.55, 1], [0, 1.05]];
-    petals.forEach(function (pp) {
-      const a = -Math.PI / 2 + pp[0] * (lily ? 0.75 : 0.35);
-      parts.push({ g: lily ? 'head' + pp[0] : 'head', d: function (x, y) { return ellipse(x, y, hx + Math.cos(a) * r * 0.55, hy - r * 0.15 + Math.sin(a) * r * 0.55 * pp[1], r * (lily ? 0.62 : 0.52), r * (lily ? 0.2 : 0.34), a); }, order: function (x, y) { return radial(x, y, r * 1.3); } });
-    });
-    if (lily) parts.push({ fill: "'", solid: true, d: function (x, y) { return circle(x, y, hx, hy - r * 0.1, r * 0.12); }, order: function () { return 0.5; } });
-  } else if (kind === 'bells') {
-    // bells hanging from an arch
-    const n = 3 + Math.floor(R() * 3), r = H * 0.07, span = H * 0.5 / AX * AX;
-    const arch = [];
-    for (let i = 0; i <= 20; i++) { const t = i / 20; arch.push({ x: hx + t * span * 0.9, y: hy - Math.sin(t * Math.PI * 0.9) * H * 0.12 + t * t * H * 0.1 }); }
-    parts.push({ g: 'arch', stem: true, d: function (x, y) { let b = 1e9; for (let i = 0; i < 20; i++) b = Math.min(b, segDist(x, y, arch[i].x, arch[i].y, arch[i + 1].x, arch[i + 1].y)[0]); return b; }, order: function (x) { return 0.45 + (x - hx) / span * 0.3; } });
-    for (let i = 0; i < n; i++) {
-      const p = arch[Math.floor((i + 1) / (n + 1) * 20)], by = p.y + r * 2.2;
-      parts.push({ g: 'bell' + i, d: function (x, y) { return Math.max(circle(x, y, p.x, by, r * 1.15), -(y - by - r * 0.35)); }, order: function () { return 0.6 + i / n * 0.35; } });
-      parts.push({ g: 'thread' + i, stem: true, d: function (x, y) { return segDist(x, y, p.x, p.y, p.x, by - r)[0]; }, order: function () { return 0.55 + i / n * 0.35; } });
-    }
-  } else if (kind === 'poppy') {
-    const r = H * (0.15 + R() * 0.05), n = 4 + Math.floor(R() * 2), rot = R() * TAU;
-    for (let i = 0; i < n; i++) {
-      const a = rot + i / n * TAU;
-      parts.push({ g: 'head', d: function (x, y) { return circle(x, y, hx + Math.cos(a) * r * 0.5, hy + Math.sin(a) * r * 0.42, r * 0.62); }, order: function (x, y) { return radial(x, y, r * 1.3); } });
-    }
-    parts.push({ fill: '*', solid: true, d: function (x, y) { return circle(x, y, hx, hy, r * 0.22); }, order: function () { return 0.45; } });
-  } else if (kind === 'sprig') {
-    for (let i = 0; i < 3; i++) {
-      const a = -Math.PI / 2 + (i - 1) * 0.6, len = H * 0.12;
-      parts.push({ g: 'tip' + i, d: function (x, y) { return ellipse(x, y, hx + Math.cos(a) * len, hy + Math.sin(a) * len, len, len * 0.32, a); }, order: function () { return 0.6 + i * 0.1; } });
-    }
-  }
-  return render(parts, Wd, H, R, opts.petal);
-}
-
-// which character draws an edge running at this angle, at this height in the cell
-function strokeChar(nx, ny, off) {
-  // tangent angle on screen (y grows downwards), folded into [0, 180)
-  let a = Math.atan2(nx, -ny) * 180 / Math.PI;
-  a = ((a % 180) + 180) % 180;
-  if (a < 20 || a > 160) return off > 0.18 ? '_' : off < -0.22 ? "'" : '-';
-  if (a < 70) return '\\';
-  if (a < 110) return '|';
-  return '/';
-}
-
-function render(parts, W, H, R, petalChar) {
-  // shapes of one group melt into one outline
-  const groups = {};
-  parts.forEach(function (P) { if (!P.solid) (groups[P.g] = groups[P.g] || []).push(P); });
-  const gl = Object.keys(groups).map(function (k) {
-    const list = groups[k];
-    return {
-      stem: list[0].stem,
-      d: function (x, y) { let m = 1e9; for (let i = 0; i < list.length; i++) m = Math.min(m, list[i].d(x, y)); return m; },
-      order: function (x, y) { let m = 1e9, o = 0; for (let i = 0; i < list.length; i++) { const d = list[i].d(x, y); if (d < m) { m = d; o = list[i].order(x, y); } } return o; }
-    };
-  });
-  const solids = parts.filter(function (P) { return P.solid; });
-  const rows = [], order = [];
-  for (let r = 0; r < H; r++) {
-    let line = '';
-    const ord = [];
-    for (let c = 0; c < W; c++) {
-      const x = (c + 0.5) * AX, y = r + 0.5;
-      let ch = ' ', o = 1, best = 1e9;
-      for (let k = 0; k < solids.length; k++) {
-        const P = solids[k];
-        if (P.d(x, y) < 0.1) { best = -1; ch = (c + r) % 2 ? P.fill : (P.fill === '@' ? 'o' : P.fill); o = P.order(x, y); }
-      }
-      if (best < 0) { line += ch; ord.push(o); continue; }
-      for (let k = 0; k < gl.length; k++) {
-        const P = gl[k], d = P.d(x, y);
-        if (Math.abs(d) > 1.2) continue;
-        const e = 0.05, gx = (P.d(x + e, y) - P.d(x - e, y)) / (2 * e), gy = (P.d(x, y + e) - P.d(x, y - e)) / (2 * e), g = Math.hypot(gx, gy) || 1;
-        const nx = gx / g, ny = gy / g;
-        // does the edge actually pass through this cell?
-        const reach = 0.5 * Math.max(Math.abs(nx) * AX, Math.abs(ny)) * 1.04;
-        const dd = P.stem ? d - 0.0 : d;
-        if (Math.abs(dd) <= reach && Math.abs(dd) < best) {
-          best = Math.abs(dd);
-          const off = -dd * ny;
-          ch = !P.stem && petalChar && R() < 0.3 ? petalChar : strokeChar(nx, ny, P.stem ? 0 : off);
-          o = P.order(x, y);
-        }
-      }
-      line += ch; ord.push(ch === ' ' ? -1 : Math.min(1, Math.max(0, o + (R() - 0.5) * 0.08)));
-    }
-    rows.push(line); order.push(ord);
-  }
+  // a single flower, or two or three leaning together
+  const n = opts.kind ? 1 : (R() < 0.62 ? 1 : R() < 0.7 ? 2 : 3);
+  const names = [];
+  for (let i = 0; i < n; i++) names.push(opts.kind || (i === 0 ? BIG[Math.floor(R() * BIG.length)] : HEAD_NAMES[Math.floor(R() * HEAD_NAMES.length)]));
+  const tall = Math.max(7, Math.round((opts.size || 20) * 0.48));
+  const stems = names.map(function (nm, i) { return Math.max(4, tall - i * (2 + Math.floor(R() * 3)) - (nm === 'bud' || nm === 'bell' ? 2 : 0)); });
+  const W = 34 + n * 6, H = Math.max.apply(null, stems.map(function (s, i) { return s + HEADS[names[i]].length; })) + 2;
+  const g = grid(W, H), base = Math.floor(W / 2);
+  const spots = n === 1 ? [0] : n === 2 ? [-4, 5] : [-7, 0, 7];
+  names.forEach(function (nm, i) { oneFlower(g, R, base + spots[i] + Math.round((R() - 0.5) * 2), stems[i], nm, opts.petal); });
   // a few specks of light round it
-  for (let i = 0; i < 6; i++) {
-    const r = Math.floor(R() * H * 0.7), c = Math.floor(R() * W);
-    if (rows[r][c] === ' ') { rows[r] = rows[r].slice(0, c) + (R() < 0.5 ? '.' : R() < 0.5 ? '*' : '+') + rows[r].slice(c + 1); order[r][c] = 0.85 + R() * 0.15; }
-  }
-  // trim empty columns at the sides
-  let l = W, rr = 0;
-  rows.forEach(function (s) { const a = s.search(/\S/); if (a >= 0) { l = Math.min(l, a); rr = Math.max(rr, s.replace(/\s+$/, '').length); } });
-  return { rows: rows.map(function (s) { return s.slice(l, rr); }), order: order.map(function (o) { return o.slice(l, rr); }) };
+  for (let i = 0; i < 5; i++) { const r = Math.floor(R() * H * 0.6), c = Math.floor(R() * W); if (!g[r][c]) put(g, r, c, R() < 0.5 ? '.' : R() < 0.5 ? '*' : '+', 0.9); }
+  // into rows of text, trimmed
+  const rowsOut = g.map(function (row) { return row.map(function (c) { return c ? c.ch : ' '; }).join(''); });
+  const order = g.map(function (row) { return row.map(function (c) { return c ? Math.min(1, c.o + (R() - 0.5) * 0.05) : -1; }); });
+  let l = W, rgt = 0;
+  rowsOut.forEach(function (s) { const a = s.search(/\S/); if (a >= 0) { l = Math.min(l, a); rgt = Math.max(rgt, s.replace(/\s+$/, '').length); } });
+  let top = 0; while (top < rowsOut.length - 1 && !rowsOut[top].trim()) top++;
+  return { rows: rowsOut.slice(top).map(function (s) { return s.slice(l, rgt); }), order: order.slice(top).map(function (o) { return o.slice(l, rgt); }) };
 }
 
 /* ---- a flower on the screen: it grows in, stays, and comes apart ---- */

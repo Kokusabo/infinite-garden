@@ -2,7 +2,7 @@
  * an old 3d place, a photograph remembered as letters, or a page, like a page torn out
  * of a book about a garden. Each has its own green, its own words, and its own way of
  * turning into the next one. The same visit always unfolds the same way. */
-import { rng } from './ascii.js?v=3';
+import { rng } from './ascii.js?v=4';
 
 export const LINES = [
   'it was brighter than this', 'don\'t look straight at it', 'the grass grew over the sound', 'somebody planted you here',
@@ -81,6 +81,9 @@ export function createScenes(seed, nPhotos, worlds) {
       seed: R(),
       text: null, page: null
     };
+    // how it is seen: mostly clear, sometimes soft, now and then smeared by astigmatism (and always so when the sun is in the eyes)
+    const fr = R();
+    s.focus = s.sun ? 'astig' : kind === 'ascii' || kind === 'page' ? 'sharp' : kind === 'world' ? (fr < 0.6 ? 'soft' : 'sharp') : s.tape ? (fr < 0.5 ? 'soft' : 'sharp') : fr < 0.62 ? 'sharp' : fr < 0.9 ? 'soft' : 'astig';
     if (s.tape) {
       const y = 1996 + Math.floor(R() * 30), m = 1 + Math.floor(R() * 12), d = 1 + Math.floor(R() * 28), h = 6 + Math.floor(R() * 14), mi = Math.floor(R() * 60);
       const p2 = function (v) { return String(v).padStart(2, '0'); };
