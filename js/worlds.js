@@ -33,7 +33,9 @@ function textures() {
   T.ivy = tex(32, 32, function (x) { for (let i = 0; i < 40; i++) { x.fillStyle = ['#3e7436', '#5b9446', '#78ad57', '#2d5e2c'][(R0() * 4) | 0]; const px = R0() * 32, py = R0() * 32; x.fillRect(px | 0, py | 0, 3, 2); x.fillRect((px | 0) + 1, (py | 0) - 1, 1, 1); } });
   T.wood = tex(16, 16, function (x, w, h) { speckle(x, w, h, '#f2f2ec', ['#e4e6de', '#fbfbf6'], 40); });
   T.concrete = tex(32, 32, function (x, w, h) { speckle(x, w, h, '#c9c8bc', ['#bdbcaf', '#d4d3c8', '#b3b4a6', '#dad9cf'], 260); x.fillStyle = 'rgba(80,90,70,0.25)'; x.fillRect(0, 0, 32, 1); });
-  T.moss = tex(32, 32, function (x) { for (let i = 0; i < 160; i++) { x.fillStyle = ['#6f9a3e', '#87b04c', '#5b8636', '#a3c460', '#4c7430'][(R0() * 5) | 0]; x.fillRect((R0() * 32) | 0, (R0() * 32) | 0, 2, 1 + (R0() * 2 | 0)); } });
+  T.moss = tex(32, 32, function (x) { x.fillStyle = '#5f8a3a'; x.fillRect(0, 0, 32, 32); for (let i = 0; i < 160; i++) { x.fillStyle = ['#6f9a3e', '#87b04c', '#5b8636', '#a3c460', '#4c7430'][(R0() * 5) | 0]; x.fillRect((R0() * 32) | 0, (R0() * 32) | 0, 2, 1 + (R0() * 2 | 0)); } });
+  // the far trees: leaves all over, no holes
+  T.crown = tex(32, 32, function (x, w, h) { speckle(x, w, h, '#5d8f49', ['#3f7a3a', '#5a9a4a', '#77b45a', '#9ccc72', '#2f6430'], 300); });
   return T;
 }
 function crossed(texture, w, h) {
@@ -94,9 +96,9 @@ function meadow() {
   for (let i = 0; i < 6; i++) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.18, 8, 0.18), pole); p.position.set(-9 + i * 1.5, 4, -10 - i * 14); scene.add(p); const bar = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.1, 0.1), pole); bar.position.set(p.position.x, 7.6, p.position.z); scene.add(bar); tops.push(p.position); }
   [-0.7, 0, 0.7].forEach(function (o) { for (let i = 0; i < tops.length - 1; i++) { const pts = []; for (let k = 0; k <= 12; k++) { const u = k / 12; pts.push(new THREE.Vector3(tops[i].x + o + (tops[i + 1].x - tops[i].x) * u, 7.65 - Math.sin(u * Math.PI) * 0.8, tops[i].z + (tops[i + 1].z - tops[i].z) * u)); } scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), wire)); } });
   // trees far off, round and soft
-  const crown = new THREE.MeshLambertMaterial({ map: t.leafy, color: 0xd0e8c0 });
+  const crown = new THREE.MeshLambertMaterial({ map: t.crown, color: 0xd0e8c0 });
   for (let i = 0; i < 14; i++) { const c = new THREE.Mesh(new THREE.IcosahedronGeometry(2 + R() * 2.5, 0), crown); c.position.set((R() - 0.5) * 70, 2.5 + R() * 2, -40 - R() * 30); scene.add(c); }
-  const camera = new THREE.PerspectiveCamera(58, 16 / 9, 0.05, 300);
+  const camera = new THREE.PerspectiveCamera(58, 16 / 9, 0.1, 300);
   return { scene: scene, camera: camera, update: function (t) {
     camera.position.set(Math.sin(t * 0.05) * 1.5, 1.3 + Math.sin(t * 0.4) * 0.03, 2 - t * 0.35 % 30); camera.lookAt(camera.position.x * 0.5 + 0.2, 1.0, camera.position.z - 10);
     if (Math.floor(t / 6) !== chan) { chan = Math.floor(t / 6); channel(chan * 977 + 5); }
@@ -125,7 +127,7 @@ function greenhouse() {
   scatter(scene, crossed(t.leafy, 1.4, 1.6), leafy, 340, function () { const side = R() < 0.5 ? -1 : 1; return [side * (1.4 + R() * 2.3), 0, -R() * 76 + 2, R() * TAU, 0.45 + R() * 0.9]; });
   const pots = new THREE.MeshLambertMaterial({ color: 0xc9b9a3 });
   scatter(scene, new THREE.CylinderGeometry(0.22, 0.16, 0.3, 8).translate(0, 0.15, 0), pots, 60, function () { const side = R() < 0.5 ? -1 : 1; return [side * (1.2 + R() * 0.3), 0, -R() * 76, 0, 0.8 + R() * 0.6]; });
-  const camera = new THREE.PerspectiveCamera(62, 16 / 9, 0.05, 200);
+  const camera = new THREE.PerspectiveCamera(62, 16 / 9, 0.1, 200);
   return { scene: scene, camera: camera, update: function (t) { const z = -((t * 0.5) % 50); camera.position.set(Math.sin(t * 0.13) * 0.4, 1.5, z); camera.lookAt(Math.sin(t * 0.07) * 1.5, 1.9 + Math.sin(t * 0.05) * 0.4, z - 8); } };
 }
 
@@ -152,7 +154,7 @@ function room() {
   scatter(scene, crossed(t.tuft, 1, 1), new THREE.MeshLambertMaterial({ map: t.tuft, alphaTest: 0.5, side: THREE.DoubleSide }), 40, function () { return [0.2 + (R() - 0.5) * 2, 0, -1.4 + (R() - 0.5) * 2, R() * TAU, 0.3 + R() * 0.4]; });
   const ivy = new THREE.MeshLambertMaterial({ map: t.ivy, alphaTest: 0.5, transparent: false, side: THREE.DoubleSide });
   const iv = new THREE.Mesh(new THREE.PlaneGeometry(3, 4), ivy); iv.position.set(3.97, 2, -3); iv.rotation.y = -Math.PI / 2; t.ivy.wrapS = t.ivy.wrapT = THREE.RepeatWrapping; t.ivy.repeat.set(3, 4); scene.add(iv);
-  const camera = new THREE.PerspectiveCamera(60, 16 / 9, 0.05, 100);
+  const camera = new THREE.PerspectiveCamera(60, 16 / 9, 0.1, 100);
   return { scene: scene, camera: camera, update: function (t) { const a = Math.sin(t * 0.06) * 0.5; camera.position.set(Math.sin(a) * 3, 1.5 + Math.sin(t * 0.2) * 0.05, 3.5 - t * 0.02 % 1.5); camera.lookAt(0.2, 1.5, -2.5); } };
 }
 
@@ -162,11 +164,11 @@ function stairs() {
   scene.background = new THREE.Color('#f1f7e8'); scene.fog = new THREE.Fog('#ecf4e2', 3, 26);
   lights(scene, 2.1, 1.4);
   const N = 48, rise = 0.2, run = 0.42;
-  const concrete = new THREE.MeshLambertMaterial({ map: t.concrete }), moss = new THREE.MeshLambertMaterial({ map: t.moss });
+  const concrete = new THREE.MeshLambertMaterial({ map: t.concrete }), moss = new THREE.MeshLambertMaterial({ map: t.moss, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   for (let i = 0; i < N; i++) {
     const h = rise * (i + 1), step = new THREE.Mesh(new THREE.BoxGeometry(2.6, h, run), concrete);
     step.position.set(0, h / 2, -run * (i + 0.5)); scene.add(step);
-    if (R() < 0.75) { const w = 2.4 * (0.3 + R() * 0.7), m = new THREE.Mesh(new THREE.PlaneGeometry(w, run * 0.92).rotateX(-Math.PI / 2), moss); m.position.set((R() - 0.5) * (2.4 - w), h + 0.004, -run * (i + 0.5)); scene.add(m); }
+    if (R() < 0.75) { const w = 2.4 * (0.3 + R() * 0.7), m = new THREE.Mesh(new THREE.PlaneGeometry(w, run * 0.92).rotateX(-Math.PI / 2), moss); m.position.set((R() - 0.5) * (2.4 - w), h + 0.012, -run * (i + 0.5)); scene.add(m); }
   }
   // a rail on one side
   const rail = new THREE.MeshLambertMaterial({ color: 0x6f7a62 }), slope = Math.atan2(rise, run), len = Math.hypot(rise, run) * N;
@@ -181,7 +183,7 @@ function stairs() {
   // the top, where it is too bright to see
   const glow = new THREE.Mesh(new THREE.PlaneGeometry(6, 4), new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false }));
   glow.position.set(0, rise * N + 1.5, -run * N - 1.5); scene.add(glow);
-  const camera = new THREE.PerspectiveCamera(60, 16 / 9, 0.05, 120);
+  const camera = new THREE.PerspectiveCamera(60, 16 / 9, 0.1, 120);
   return { scene: scene, camera: camera, update: function (t) {
     const k = (t * 0.22) % (run * N * 0.75), z = 1.2 - k, y = Math.max(0, -z / run) * rise + 1.55;
     camera.position.set(Math.sin(t * 0.15) * 0.25, y + Math.sin(t * 1.6) * 0.03, z);

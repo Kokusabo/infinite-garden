@@ -5,7 +5,7 @@
  * Hold, and your eyes close. Type, and what you type grows. It does not end. */
 import * as THREE from '../vendor/three.module.min.js';
 import { createEye, cover, TRANSITIONS } from './eye.js?v=5';
-import { createWorld, WORLD_NAMES } from './worlds.js?v=5';
+import { createWorld, WORLD_NAMES } from './worlds.js?v=6';
 import { makeFlower, bloom, createLetters } from './ascii.js?v=5';
 import { createScenes } from './scenes.js?v=4';
 import { createType } from './type.js?v=4';
