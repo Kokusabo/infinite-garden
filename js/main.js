@@ -4,7 +4,7 @@
  * pages from a book about all this. Touch, and a flower made of letters grows there.
  * Hold, and your eyes close. Type, and what you type grows. It does not end. */
 import * as THREE from '../vendor/three.module.min.js';
-import { createEye, cover, TRANSITIONS } from './eye.js?v=7';
+import { createEye, cover, TRANSITIONS } from './eye.js?v=8';
 import { createWorld, WORLD_NAMES } from './worlds.js?v=6';
 import { makeFlower, bloom, createLetters } from './ascii.js?v=5';
 import { createScenes } from './scenes.js?v=5';
@@ -234,6 +234,13 @@ function run() {
   /* ---- the eye's own life ---- */
   let closed = 0, angle = rand(0, Math.PI), angleV = rand(-0.05, 0.05);
   let blinkT0 = -1, nextBlink = rand(10, 20), twice = false, lowAt = -1, whipDir = 0;
+  // a light shone into your face, now and then, on its own
+  let glareT0 = -1, nextGlare = rand(2, 4), glareDur = 1.6, glareHold = -1, hush = false;
+  const glarePos = new THREE.Vector2(0.5, 0.5);
+  function glare(t) { glareT0 = t; glareHold = -1; glareDur = rand(1.2, 2.2); if (Math.random() < 0.4) glarePos.copy(sun); else glarePos.set(rand(0.15, 0.85), rand(0.2, 0.85)); }
+  // big movements are left out for those who asked their device for less motion
+  const MOVING = ['whip', 'shake', 'lowfps', 'stutter', 'wave', 'strobe'];
+  function pick(list) { let n = list[Math.floor(Math.random() * list.length)]; if (reduced && MOVING.indexOf(n) >= 0) n = Math.random() < 0.5 ? 'flash' : 'glow'; return n; }
   // how each kind of scene is seen: mostly clear; sometimes soft; sometimes smeared the astigmatic way
   const LOOK = {
     sharp: { astig: 0, ghost: 0, streak: 0.55, haze: 0.4, sun: 0.34, flow: 0.18 },
@@ -260,7 +267,7 @@ function run() {
       scene: function (i) { return get(i); }, freeze: function (k, v) { holdAt = k; holdVel = v || 0; },
       find: function (kind, from) { for (let i = from || 0; i < 400; i++) if (get(i).kind === kind) return i; return -1; },
       findTrans: function (tr, from) { for (let i = from || 1; i < 400; i++) if (get(i).trans === tr && get(i).kind === 'photo' && get(i + 1).kind === 'photo') return i; return -1; },
-      plant: plant, blink: function () { nextBlink = 0; }
+      plant: plant, blink: function () { nextBlink = 0; }, glare: function (k) { glare(clock()); if (k !== undefined) glareHold = k; }, ev: function () { return evT0 >= 0 ? evName : ''; }, hush: function (b) { hush = b; }
     };
   }
 
@@ -313,7 +320,8 @@ function run() {
     if (near !== lastNear) {
       lastNear = near;
       if (get(near).kind === 'page') sound.bell();
-      else if (!reduced && t - openedAt > 4 && Math.random() < (get(near).focus === 'sharp' ? 0.85 : 0.5)) { happen(ARRIVALS[Math.floor(Math.random() * ARRIVALS.length)], t); nextEvent = t - openedAt + rand(1.6, 3.6); }
+      else if (t - openedAt > 3 && Math.random() < 0.35 && glareT0 < 0) { glare(t); nextGlare = t - openedAt + rand(3, 6); }
+      else if (t - openedAt > 3 && Math.random() < 0.8) { happen(pick(ARRIVALS), t); nextEvent = t - openedAt + rand(1, 2.4); }
     }
 
     // the eye: the smear turns; the faster you go the more it tears
@@ -321,7 +329,17 @@ function run() {
     angle += angleV * dt * (reduced ? 0.3 : 1);
     const lookA = LOOK[A.focus] || LOOK.sharp, lookB = LOOK[B.focus] || LOOK.sharp, look = function (k) { return lerp(lookA[k], lookB[k], p); };
     // something happens: now and then while you stay, and sometimes the moment you arrive
-    if (!reduced && evT0 < 0 && Math.abs(vel) < 0.2 && tri < 0.01 && t - openedAt > nextEvent) { happen(EVENT_NAMES[Math.floor(Math.random() * EVENT_NAMES.length)], t); nextEvent = t - openedAt + rand(1.4, 3.6); }
+    // something happens, all the time, whether you move or not
+    if (!hush && evT0 < 0 && t - openedAt > nextEvent) { happen(pick(EVENT_NAMES), t); nextEvent = t - openedAt + rand(0.8, 2.4); }
+    if (!hush && glareT0 < 0 && t - openedAt > nextGlare) { glare(t); nextGlare = t - openedAt + rand(3, 7); }
+    let gl = 0, after = 0;
+    if (glareT0 >= 0) {
+      const k = glareHold >= 0 ? glareHold : (t - glareT0) / glareDur;
+      gl = k < 0.1 ? Math.pow(k / 0.1, 2) : k < 0.3 ? 1 : Math.exp(-(k - 0.3) * 6);
+      after = k > 0.4 ? Math.min(1, (k - 0.4) * 5) * (1 - smooth((k - 0.4) / 0.6)) : 0;
+      if (k >= 1) glareT0 = -1;
+    }
+    O.uGlare.value = gl; O.uAfterGlow.value = after; O.uGlarePos.value.copy(glarePos);
     let ev = 0;
     if (evT0 >= 0) {
       const k = evHold >= 0 ? evHold : (t - evT0) / EVENTS[evName];
@@ -341,7 +359,7 @@ function run() {
     O.uGhost.value = Math.max(look('ghost') * (0.8 + 0.2 * Math.sin(t * 0.13 + 1)), e('double'));
     O.uGhostDir.value.set(Math.cos(t * 0.05) * 0.008 * (1 + e('double') * 5), Math.sin(t * 0.07) * 0.005 * (1 + e('double') * 5));
     O.uFlare.value = e('flare');
-    O.uChroma.value = e('chroma') * (2.2 + Math.random() * 1.2) + (punch + e('flash') + e('invert')) * 0.9 + e('wave') * 0.6 + tri * 0.4;
+    O.uChroma.value = e('chroma') * (2.2 + Math.random() * 1.2) + (punch + e('flash') + e('invert')) * 0.9 + e('wave') * 0.6 + tri * 0.4 + gl * 0.7;
     O.uHaze.value = Math.max(look('haze'), tri * 0.6, e('glow'));
     O.uSweep.value.set(-0.25 + evK * 1.5, e('sweep') * 1.6);
     const sh = e('shake');
@@ -374,7 +392,7 @@ function run() {
     sun.lerp(sunW, 1 - Math.exp(-dt * (mouse ? 1.1 : 0.5)));
     sun2.lerp(sun, 1 - Math.exp(-dt * 0.8));
     O.uSun.value.copy(sun); O.uSun2.value.copy(sun2);
-    O.uStreak.value = look('streak') * (1.0 + 0.3 * Math.sin(t * 0.17)) + tri * 0.6 + e('flare') * 0.8 + e('glow') * 0.9;
+    O.uStreak.value = look('streak') * (1.0 + 0.3 * Math.sin(t * 0.17)) + tri * 0.6 + e('flare') * 0.8 + e('glow') * 0.9 + gl * 1.5;
     O.uLeak.value = (0.5 + 0.5 * Math.sin(t * 0.09)) * look('haze') + e('leak') * 2.4;
     tapeS += ((A.tape ? 1 - p : 0) + (B.tape ? p : 0) - tapeS) * (1 - Math.exp(-dt * 6));
     O.uTape.value = Math.max(tapeS, e('tape'));
@@ -394,10 +412,10 @@ function run() {
     const opening = 1 - smooth((t - openedAt) / 3.5);
     flash = Math.max(0, flash - dt * 0.9);
     // strobe: a few hard flashes in a row; flicker: the light failing and catching, frame by frame
-    const strobe = e('strobe') > 0 && Math.floor(evK * 9) % 2 === 0 ? 0.88 : 0;
-    const fl = e('flicker') > 0 ? (Math.random() < 0.3 ? 0.3 : 0.8 + Math.random() * 0.9) : 1;
-    O.uBlind.value = Math.min(1, Math.max(blind, opening * 0.95, flash, e('flash') * 0.93, strobe));
-    O.uExpose.value = expose * (1 + opening * 1.5) * (1 + tri * 0.25) * (1 + e('flash') * 1.6 + e('flare') * 0.35 + e('glow') * 0.45 + e('sweep') * 0.2) * fl;
+    const strobe = e('strobe') > 0 && Math.floor(evK * 6) % 2 === 0 ? 0.88 : 0;
+    const fl = e('flicker') > 0 ? (Math.floor(evK * 4) % 2 ? 0.35 + 0.15 * Math.sin(t * 50) : 1.1 + 0.2 * Math.sin(t * 37)) : 1;
+    O.uBlind.value = Math.min(1, Math.max(blind, opening * 0.95, flash, e('flash') * 0.93, strobe, gl * 0.35));
+    O.uExpose.value = expose * (1 + opening * 1.5) * (1 + tri * 0.25) * (1 + e('flash') * 1.6 + e('flare') * 0.35 + e('glow') * 0.45 + e('sweep') * 0.2 + gl * 1.2) * fl;
     O.uSunAmt.value = look('sun') * (1 + 0.35 * Math.sin(t * 0.23)) + blind * 0.6 + e('flare') * 0.4;
 
     // blinking, and the eyes held shut

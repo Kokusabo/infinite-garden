@@ -112,8 +112,8 @@ void main() {
 const OPTICS = `
 precision highp float;
 uniform sampler2D tScene;
-uniform float uTime, uAstig, uAngle, uGhost, uExpose, uBlind, uClosed, uSunAmt, uStreak, uLeak, uTape, uDim, uVel, uHaze, uFlare, uChroma, uZoomBlur, uSpec, uSweepAng, uInvert, uMosaic, uWave, uRays, uShafts;
-uniform vec2 uSun, uSun2, uGhostDir, uAspect, uMotion, uMotionC, uSweep, uShake;
+uniform float uTime, uAstig, uAngle, uGhost, uExpose, uBlind, uClosed, uSunAmt, uStreak, uLeak, uTape, uDim, uVel, uHaze, uFlare, uChroma, uZoomBlur, uSpec, uSweepAng, uInvert, uMosaic, uWave, uRays, uShafts, uGlare, uAfterGlow;
+uniform vec2 uSun, uSun2, uGlarePos, uGhostDir, uAspect, uMotion, uMotionC, uSweep, uShake;
 varying vec2 vUv;
 ${COMMON}
 vec3 S(vec2 uv) { uv = 1.0 - abs(1.0 - mod(uv, 2.0)); return texture2D(tScene, clamp(uv, 0.001, 0.999)).rgb; }
@@ -204,6 +204,14 @@ void main() {
     float len = 0.25 + 0.3 * (0.5 + 0.5 * sin(uTime * 0.17)) + 0.35 * vnoise(cd * 2.0 + uTime * 0.4);
     col += tint * rays * exp(-r / len) * smoothstep(0.0, 0.05, r) * uRays * 0.9 * breathe;
   }
+  if (uGlare > 0.001) {
+    float rg = length((uv - uGlarePos) * uAspect), sz = mix(0.04, 0.55, uGlare);
+    col += vec3(1.0, 0.99, 0.93) * (exp(-rg / sz) * 4.5 + exp(-rg / (sz * 3.5)) * 1.4) * uGlare;
+    col += vec3(0.86, 0.96, 1.0) * exp(-abs(uv.y - uGlarePos.y) * 55.0) * exp(-abs(uv.x - uGlarePos.x) * 1.2) * uGlare * 2.0;
+    vec2 gd = normalize((uGlarePos - 0.5) * uAspect + 1e-4);
+    float grays = pow(vnoise(vec2(dot(normalize((uv - uGlarePos) * uAspect + 1e-5), vec2(gd.y, -gd.x)) * 9.0, uTime * 2.0)), 3.0);
+    col += vec3(1.0, 0.98, 0.9) * grays * exp(-rg * 2.0) * uGlare * 1.6;
+  }
   // shafts of light falling through leaves, drifting, widening and narrowing
   if (uShafts > 0.001) {
     float sa = -0.35 + 0.25 * sin(uTime * 0.04);
@@ -247,6 +255,8 @@ void main() {
   col = mix(col, col * vec3(0.16, 0.3, 0.2) + vec3(0.01, 0.035, 0.02), uDim);
   vec3 after = vec3(0.012, 0.045, 0.03) + (b * 0.35 + st * 0.25) * vec3(0.55, 0.85, 0.4) + vec3(0.25, 0.4, 0.15) * exp(-r * 3.0) * uSunAmt;
   col = mix(col, after, uClosed);
+  // what a light leaves on the eye after it: a dark, purple-ish blot where it was
+  if (uAfterGlow > 0.001) { float ra = length((uv - uGlarePos) * uAspect); col = mix(col, col * vec3(0.5, 0.42, 0.56), smoothstep(0.42, 0.0, ra) * uAfterGlow * 0.75); }
   col = mix(col, vec3(1.0) - col * vec3(0.85, 0.7, 0.95), uInvert);   // for an instant, the negative
   col = mix(col, vec3(0.985, 1.0, 0.95), uBlind);
   col += (h1(gl_FragCoord.xy + floor(uTime * 24.0)) - 0.5) * 0.025;
@@ -266,7 +276,7 @@ export function createEye(renderer) {
   const O = {
     tScene: { value: rt.texture }, uTime: { value: 0 }, uAstig: { value: 1 }, uAngle: { value: 0.3 }, uGhost: { value: 0.5 }, uExpose: { value: 1.6 },
     uBlind: { value: 0 }, uClosed: { value: 0 }, uSunAmt: { value: 0.6 }, uStreak: { value: 1 }, uLeak: { value: 0.5 }, uTape: { value: 0 }, uDim: { value: 0 }, uVel: { value: 0 },
-    uHaze: { value: 1 }, uFlare: { value: 0 }, uChroma: { value: 0 }, uZoomBlur: { value: 0 }, uSpec: { value: 0 }, uSweepAng: { value: 0 }, uInvert: { value: 0 }, uMosaic: { value: 0 }, uWave: { value: 0 }, uRays: { value: 0.6 }, uShafts: { value: 0 },
+    uHaze: { value: 1 }, uFlare: { value: 0 }, uChroma: { value: 0 }, uZoomBlur: { value: 0 }, uSpec: { value: 0 }, uSweepAng: { value: 0 }, uInvert: { value: 0 }, uMosaic: { value: 0 }, uWave: { value: 0 }, uRays: { value: 0.6 }, uShafts: { value: 0 }, uGlare: { value: 0 }, uAfterGlow: { value: 0 }, uGlarePos: { value: new THREE.Vector2(0.5, 0.5) },
     uMotion: { value: new THREE.Vector2(0, 0) }, uMotionC: { value: new THREE.Vector2(0.5, 0.5) },
     uSun2: { value: new THREE.Vector2(0.7, 0.75) }, uSweep: { value: new THREE.Vector2(0, 0) }, uShake: { value: new THREE.Vector2(0, 0) },
     uSun: { value: new THREE.Vector2(0.7, 0.75) }, uGhostDir: { value: new THREE.Vector2(0.006, 0.003) }, uAspect: { value: new THREE.Vector2(1, 1) }
